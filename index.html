@@ -151,42 +151,42 @@
       opacity: 0.3;
     }
 
-    /* ===== 全卡片價格變動閃爍動畫（1.5 秒） ===== */
+    /* ===== 全卡片價格變動閃爍動畫 ===== */
     @keyframes flashGreen {
-      0% { background-color: rgba(0, 230, 118, 0.45); }
+      0% { background-color: rgba(0, 230, 118, 0.35); }
       100% { background-color: var(--panel-bg); }
     }
 
     @keyframes flashRed {
-      0% { background-color: rgba(255, 82, 82, 0.45); }
+      0% { background-color: rgba(255, 82, 82, 0.35); }
       100% { background-color: var(--panel-bg); }
     }
 
     .flash-up {
-      animation: flashGreen 1.5s ease-out;
+      animation: flashGreen 1.0s ease-out;
     }
 
     .flash-down {
-      animation: flashRed 1.5s ease-out;
+      animation: flashRed 1.0s ease-out;
     }
 
-    /* ===== 買賣盤區域變動閃爍動畫（1.2 秒） ===== */
+    /* ===== 買賣盤區域變動閃爍動畫 ===== */
     @keyframes flashBuyBg {
-      0% { background-color: rgba(0, 230, 118, 0.7); }
+      0% { background-color: rgba(0, 230, 118, 0.6); }
       100% { background-color: var(--buy-bg); }
     }
 
     @keyframes flashSellBg {
-      0% { background-color: rgba(255, 82, 82, 0.7); }
+      0% { background-color: rgba(255, 82, 82, 0.6); }
       100% { background-color: var(--sell-bg); }
     }
 
     .flash-buy {
-      animation: flashBuyBg 1.2s ease-out;
+      animation: flashBuyBg 0.8s ease-out;
     }
 
     .flash-sell {
-      animation: flashSellBg 1.2s ease-out;
+      animation: flashSellBg 0.8s ease-out;
     }
 
     /* 卡片頂部 */
@@ -420,49 +420,12 @@
       return 10.000;
     }
 
-    /* ================= 真實市場微觀模擬工具函數 ================= */
-    
-    /* 1. 對數正態分佈掛單量生成 (Log-normal Distribution) */
-    function getRealisticVol() {
-      // Box-Muller 轉換生成標準正態隨機數
-      const u1 = Math.random();
-      const u2 = Math.random();
-      const z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
-      
-      const mu = 9.2;    // 控制常態掛單中心（約 10,000 股）
-      const sigma = 0.85; // 控制散佈與大單出沒機率
-      
-      let vol = Math.exp(mu + z * sigma);
-      vol = Math.max(2000, Math.min(2500000, vol)); // 限制在 2K ~ 2.5M 之間
-      return Math.floor(vol / 500) * 500;           // 湊成整數手/股數
-    }
-
-    /* 2. 泊松過程時間間隔 (Poisson Arrival Process) */
-    function getPoissonInterval(meanIntervalMs = 2000) {
-      // 平均間隔 2 秒，能隨機生成具有群聚效應的抵達時間（0.2秒 ~ 10秒）
-      const interval = Math.floor(-Math.log(Math.random()) * meanIntervalMs);
-      return Math.max(200, Math.min(12000, interval));
-    }
-
-    /* 3. 微觀結構變動邏輯 (Limit Order / Cancellation / Execution) */
-    function updateDepthVolMicrostructure(currentVol) {
-      if (!currentVol || currentVol <= 0) return getRealisticVol();
-
-      const rand = Math.random();
-      if (rand < 0.40) {
-        // 40% 機率：市價吃單或撤單 (數量減少 5% ~ 35%)
-        const dropPct = 0.05 + Math.random() * 0.30;
-        const newVol = Math.floor(currentVol * (1 - dropPct));
-        return newVol < 1000 ? getRealisticVol() : Math.floor(newVol / 500) * 500;
-      } else if (rand < 0.85) {
-        // 45% 機率：新限價單掛入 (數量增加 5% ~ 40%)
-        const addPct = 0.05 + Math.random() * 0.35;
-        const newVol = Math.floor(currentVol * (1 + addPct));
-        return Math.floor(newVol / 500) * 500;
-      } else {
-        // 15% 機率：主力撤單或全數撮合，掛單簿重組 (重新生成數量)
-        return getRealisticVol();
-      }
+    /* 隨機生成 2K (2,000) 至 990K (990,000) 之間的數量 */
+    function getRandomVol() {
+      const minK = 2;
+      const maxK = 990;
+      const randomK = Math.floor(Math.random() * (maxK - minK + 1)) + minK;
+      return randomK * 1000;
     }
 
     /* 觸發區塊閃爍動畫工具 */
@@ -861,7 +824,7 @@
       }
     }
 
-    /* ================= 第一檔買賣盤渲染與真實動態模擬 ================= */
+    /* ================= 第一檔買賣盤渲染與動態閃爍邏輯 ================= */
     function renderDepthPanel(item) {
       const bidPriceEl = document.getElementById(`bid-price-${item.id}`);
       const askPriceEl = document.getElementById(`ask-price-${item.id}`);
@@ -871,34 +834,32 @@
       let buyChanged = false;
       let sellChanged = false;
 
-      /* 若尚未初始化或到達泊松隨機時間點 */
+      // 若尚未初始化量能，或倒數時間已到（1秒至20秒隨機觸發）
       if (!item.lastVolUpdate || (now - item.lastVolUpdate >= (item.nextVolDelay || 1000))) {
         if (!item.bidVol || !item.askVol) {
-          // 第一次初始化：使用對數正態分佈
-          item.bidVol = getRealisticVol();
-          item.askVol = getRealisticVol();
+          item.bidVol = getRandomVol();
+          item.askVol = getRandomVol();
           buyChanged = true;
           sellChanged = true;
         } else {
-          // 隨機事件模擬：0 = 買盤變動, 1 = 賣盤變動, 2 = 兩者皆變動
+          // 隨機選擇更新方式：0 = 只改買盤, 1 = 只改賣盤, 2 = 兩者同時改
           const mode = Math.floor(Math.random() * 3);
           if (mode === 0) {
-            item.bidVol = updateDepthVolMicrostructure(item.bidVol);
+            item.bidVol = getRandomVol();
             buyChanged = true;
           } else if (mode === 1) {
-            item.askVol = updateDepthVolMicrostructure(item.askVol);
+            item.askVol = getRandomVol();
             sellChanged = true;
           } else {
-            item.bidVol = updateDepthVolMicrostructure(item.bidVol);
-            item.askVol = updateDepthVolMicrostructure(item.askVol);
+            item.bidVol = getRandomVol();
+            item.askVol = getRandomVol();
             buyChanged = true;
             sellChanged = true;
           }
         }
 
         item.lastVolUpdate = now;
-        // 計算符合泊松過程的下一次變動間隔時間
-        item.nextVolDelay = getPoissonInterval(2000);
+        item.nextVolDelay = Math.floor(Math.random() * 19000) + 1000; // 1000ms ~ 20000ms 隨機變動
 
         // 觸發區域背景閃爍效果
         const buyBoxEl = document.getElementById(`buy-box-${item.id}`);
@@ -910,8 +871,8 @@
 
       const bidPrice = item.bidPrice || 0;
       const askPrice = item.askPrice || 0;
-      const bidVol = item.bidVol || 10000;
-      const askVol = item.askVol || 10000;
+      const bidVol = item.bidVol || 2000;
+      const askVol = item.askVol || 2000;
 
       const totalDepthVol = bidVol + askVol;
       let buyRatio = 50.0;
@@ -945,14 +906,14 @@
       if (sellBarEl) sellBarEl.style.width = `${sellRatio.toFixed(2)}%`;
     }
 
-    /* 高頻定時器（每 200ms）驅動泊松過程觸發變動 */
+    /* 每 500ms 檢查並刷新全體個股的第一檔買賣盤數量 */
     setInterval(() => {
       stockList.forEach(item => {
         if (item.bidPrice && item.askPrice) {
           renderDepthPanel(item);
         }
       });
-    }, 200);
+    }, 500);
 
     /* ================= 解析股票數據 ================= */
     function parseAndRenderStock(item, dataStr) {
@@ -1051,7 +1012,7 @@
           document.getElementById(`vol-${item.id}`).innerText = `成交: ${volStr}`;
           document.getElementById(`time-${item.id}`).innerText = `更新: ${updateTime}`;
 
-          /* ===== 第一檔買賣盤價格與 Tick Size 連動計算 ===== */
+          /* ===== 第一檔買賣盤價格與買賣差價計算 ===== */
           let bidPrice = parseFloat(parts[9]) || 0;
           let askPrice = parseFloat(parts[11]) || 0;
           const tickSize = getTickSize(price);
