@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>港股即時看盤</title>
+  <!-- 引入繁簡轉換工具 OpenCC-JS -->
+  <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
+  <style>
+    :root {
+      --bg-color: #121212;
+      --panel-bg: #1e1e1e;
+      --card-bg: #2a2a2a;
+      --text-main: #ffffff;
+      --text-muted: #aaaaaa;
+      --up-color: #00E676;   
+      --down-color: #FF5252; 
+      --flat-color: #AAAAAA;
+      --accent: #1f538d;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 15px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* 頂部統一新增區塊 */
+    .top-add-bar {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .top-add-bar input {
+      flex: 1;
+      padding: 12px 15px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      background-color: var(--panel-bg);
+      color: #fff;
+      font-size: 16px; 
+    }
+
+    .top-add-bar input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .top-add-bar button {
+      padding: 12px 20px;
+      border-radius: 8px;
+      border: none;
+      background-color: var(--accent);
+      color: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .top-add-bar button:hover {
+      background-color: #14375e;
+    }
+
+    /* 單行垂直佈局區域 */
+    .grid-container {
+      width: 100%;
+      max-width: 960px;
+      display: grid;
+      grid-template-columns: 1fr; 
+      gap: 12px;
+    }
+
+    /* 個別報價卡片 */
+    .stock-panel {
+      background-color: var(--panel-bg);
+      border-radius: 12px;
+      padding: 12px 15px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* 卡片頂部 (標題左、移除按鈕右) */
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: bold;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .remove-btn {
+      background-color: transparent;
+      color: var(--down-color);
+      border: 1px solid var(--down-color);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      font-size: 12px;
+      font-weight: bold;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    /* 所有數據放在同一行的滾動區塊 */
+    .data-scroll-row {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      white-space: nowrap; /* 強制不換行 */
+      overflow-x: auto; /* 超出螢幕可左右滑動 */
+      width: 100%;
+      padding-bottom: 4px;
+    }
+    
+    /* 隱藏滾動條保持美觀 */
+    .data-scroll-row::-webkit-scrollbar {
+      display: none; 
+    }
+
+    .price {
+      font-size: 26px;
+      font-weight: bold;
+    }
+
+    .change {
+      font-size: 15px;
+      font-weight: bold;
+      margin-right: 8px; /* 與後方高低點資訊隔開一點 */
+    }
+
+    .info-item {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- 統一在最頂，可以輸入及新增 -->
+  <div class="top-add-bar">
+    <input type="text" id="newStockInput" placeholder="輸入代號 (如: HSI 或 0700)">
+    <button onclick="addStock()">新增</button>
+  </div>
+
+  <!-- 卡片列表區域 -->
+  <div class="grid-container" id="gridContainer"></div>
+
+  <script>
+    // 初始化簡轉繁轉換器 (從簡體 cn 轉到香港繁體 hk)
+    let s2hk = (text) => text; // 預設為不轉換（避免載入失敗時報錯）
+    try {
+      if (typeof OpenCC !== 'undefined') {
+        s2hk = OpenCC.Converter({ from: 'cn', to: 'hk' });
+      }
+    } catch (e) {
+      console.warn("繁簡轉換庫載入失敗");
+    }
+
+    let nextId = 0;
+    let stockList = [
+      { id: nextId++, symbol: "HSI" },
+      { id: nextId++, symbol: "00753" },
+      { id: nextId++, symbol: "01800" },
+      { id: nextId++, symbol: "02333" }
+    ];
+
+    let timerId = null;
+
+    // 監聽 Enter 鍵直接新增
+    document.getElementById('newStockInput').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        addStock();
+      }
+    });
+
+    function renderGridUI() {
+      const container = document.getElementById("gridContainer");
+      container.innerHTML = "";
+
+      stockList.forEach((item) => {
+        const cardHtml = `
+          <div class="stock-panel" id="panel-${item.id}">
+            
+            <div class="card-header">
+              <!-- 標題在左 -->
+              <div class="title" id="title-${item.id}">載入中...</div>
+              <!-- X 移除按鈕在右 -->
+              <button class="remove-btn" onclick="removeStock(${item.id})">✕</button>
+            </div>
+
+            <!-- 所有數據放在同一行，可橫向滑動 -->
+            <div class="data-scroll-row">
+              <span class="price" id="price-${item.id}">0.000</span>
+              <span class="change" id="change-${item.id}">+0.000 (+0.00%)</span>
+              <span class="info-item" id="high-${item.id}">最高: --</span>
+              <span class="info-item" id="low-${item.id}">最低: --</span>
+              <span class="info-item" id="vol-${item.id}">成交: --</span>
+              <span class="info-item" id="time-${item.id}">更新: --</span>
+            </div>
+            
+          </div>
+        `;
+        container.insertAdjacentHTML('beforeend', cardHtml);
+      });
+    }
+
+    function addStock() {
+      const inputEl = document.getElementById('newStockInput');
+      const val = inputEl.value.trim();
+      if (val) {
+        stockList.unshift({ id: nextId++, symbol: val });
+        inputEl.value = "";
+        renderGridUI();
+        updateAllStocks();
+      }
+    }
+
+    function removeStock(id) {
+      stockList = stockList.filter(item => item.id !== id);
+      renderGridUI();
+    }
+
+    function isHKEXTradingTime() {
+      const hkDateString = new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' });
+      const now = new Date(hkDateString);
+      
+      const day = now.getDay();
+      if (day === 0 || day === 6) return false;
+
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const timeInMinutes = hours * 60 + minutes;
+
+      const mStart = 9 * 60;       // 09:00
+      const mEnd = 12 * 60;        // 12:00
+      const aStart = 13 * 60;      // 13:00
+      const aEnd = 16 * 60 + 10;   // 16:10
+
+      return (timeInMinutes >= mStart && timeInMinutes <= mEnd) ||
+             (timeInMinutes >= aStart && timeInMinutes <= aEnd);
+    }
+
+    function fetchAndRenderSlot(item) {
+      const symbol = item.symbol.trim();
+      const isIndex = symbol.toUpperCase() === 'HSI' || symbol.toUpperCase() === 'HKHSI';
+
+      let url, varName;
+      if (isIndex) {
+        url = `https://qt.gtimg.cn/q=s_hkHSI`;
+        varName = `v_s_hkHSI`;
+      } else {
+        const cleanCode = symbol.toUpperCase().replace('.HK', '').trim().padStart(5, '0');
+        url = `https://qt.gtimg.cn/q=r_hk${cleanCode}`;
+        varName = `v_r_hk${cleanCode}`;
+      }
+
+      const scriptId = `jsonp-script-${item.id}`;
+      const oldScript = document.getElementById(scriptId);
+      if (oldScript) oldScript.remove();
+
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = url;
+
+      script.onload = () => {
+        const titleEl = document.getElementById(`title-${item.id}`);
+        if (!titleEl) return; 
+
+        const dataStr = window[varName];
+        if (dataStr && dataStr.includes('~')) {
+          const parts = dataStr.split('~');
+          
+          // 在此處將股票名稱轉為繁體
+          const stockName = s2hk(parts[1]); 
+
+          if (isIndex) {
+            if (parts.length > 5) {
+              const price = parseFloat(parts[3]);
+              const change = parseFloat(parts[4]);
+              const changePct = parseFloat(parts[5]);
+              const turnover = parseFloat(parts[6]) || 0.0;
+
+              titleEl.innerText = `${stockName} (${parts[2]})`;
+              const priceEl = document.getElementById(`price-${item.id}`);
+              const changeEl = document.getElementById(`change-${item.id}`);
+              
+              priceEl.innerText = price.toFixed(2);
+
+              let color = 'var(--flat-color)';
+              let prefix = '';
+              if (change > 0) {
+                color = 'var(--up-color)';
+                prefix = '▲ +';
+              } else if (change < 0) {
+                color = 'var(--down-color)';
+                prefix = '▼ ';
+              }
+
+              priceEl.style.color = color;
+              changeEl.style.color = color;
+              changeEl.innerText = `${prefix}${change.toFixed(2)} (${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+
+              document.getElementById(`high-${item.id}`).innerText = `最高: --`;
+              document.getElementById(`low-${item.id}`).innerText = `最低: --`;
+              document.getElementById(`vol-${item.id}`).innerText = `大市成交: ${(turnover / 1e8).toFixed(2)} 億`;
+              
+              const timeString = new Date().toLocaleTimeString('zh-HK', { hour12: false });
+              document.getElementById(`time-${item.id}`).innerText = `更新: ${timeString}`;
+              return;
+            }
+          } else {
+            if (parts.length > 34 && parts[1] !== '') {
+              const price = parseFloat(parts[3]);
+              const prevClose = parseFloat(parts[4]);
+              const change = parts[31] ? parseFloat(parts[31]) : (price - prevClose);
+              const changePct = parts[32] ? parseFloat(parts[32]) : 0.0;
+              const high = parseFloat(parts[33]) || 0.0;
+              const low = parseFloat(parts[34]) || 0.0;
+              const volume = parts[6] ? parseFloat(parts[6]) : 0.0;
+              
+              let updateTime = parts[30] || new Date().toLocaleTimeString('zh-HK', { hour12: false });
+              if(updateTime.length > 8 && updateTime.includes(" ")) {
+                  updateTime = updateTime.split(" ")[1]; 
+              }
+
+              titleEl.innerText = `${stockName} (${parts[2]}.HK)`;
+              const priceEl = document.getElementById(`price-${item.id}`);
+              const changeEl = document.getElementById(`change-${item.id}`);
+              
+              priceEl.innerText = price.toFixed(3);
+
+              let color = 'var(--flat-color)';
+              let prefix = '';
+              if (change > 0) {
+                color = 'var(--up-color)';
+                prefix = '▲ +';
+              } else if (change < 0) {
+                color = 'var(--down-color)';
+                prefix = '▼ ';
+              }
+
+              priceEl.style.color = color;
+              changeEl.style.color = color;
+              changeEl.innerText = `${prefix}${change.toFixed(3)} (${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+
+              document.getElementById(`high-${item.id}`).innerText = `最高: ${high.toFixed(3)}`;
+              document.getElementById(`low-${item.id}`).innerText = `最低: ${low.toFixed(3)}`;
+
+              let volStr = '';
+              if (volume >= 1e8) {
+                volStr = `${(volume / 1e8).toFixed(2)} 億`;
+              } else if (volume >= 1e4) {
+                volStr = `${(volume / 1e4).toFixed(2)} 萬`;
+              } else {
+                volStr = `${Math.floor(volume)}`;
+              }
+              document.getElementById(`vol-${item.id}`).innerText = `成交: ${volStr}`;
+              document.getElementById(`time-${item.id}`).innerText = `更新: ${updateTime}`;
+              return;
+            }
+          }
+        }
+        titleEl.innerText = "查無此代號";
+      };
+
+      document.body.appendChild(script);
+    }
+
+    function updateAllStocks() {
+      if (timerId) {
+        clearTimeout(timerId);
+        timerId = null;
+      }
+
+      stockList.forEach(item => {
+        fetchAndRenderSlot(item);
+      });
+
+      if (isHKEXTradingTime()) {
+        timerId = setTimeout(updateAllStocks, 1000);
+      } else {
+        timerId = setTimeout(updateAllStocks, 180000); 
+      }
+    }
+
+    renderGridUI();
+    updateAllStocks();
+  </script>
+</body>
+</html>
