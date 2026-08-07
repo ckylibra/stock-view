@@ -258,12 +258,12 @@
       color: var(--text-muted);
     }
 
-    /* ===== 第一檔盤口區塊（改為靠左） ===== */
+    /* ===== 第一檔盤口區塊（靠左、寬度 350px、字體加大） ===== */
     .depth-panel {
       display: none;
-      margin: 8px 0 2px 0; /* 靠左對齊 */
+      margin: 8px 0 2px 0; /* 靠左 */
       width: 100%;
-      max-width: 300px; /* 限制寬度 */
+      max-width: 350px; /* 修改為 350px */
       padding-top: 6px;
       border-top: 1px dashed var(--border-color);
     }
@@ -275,7 +275,7 @@
     .depth-title-row {
       display: flex;
       justify-content: space-between;
-      font-size: 11px;
+      font-size: 12px; /* 從 11px 調大 */
       font-weight: bold;
       color: var(--text-muted);
       margin-bottom: 4px;
@@ -289,23 +289,23 @@
     }
 
     .buy-pct-text {
-      font-size: 11px;
+      font-size: 12px; /* 從 11px 調大 */
       font-weight: bold;
       color: var(--up-color);
-      min-width: 38px;
+      min-width: 42px;
     }
 
     .sell-pct-text {
-      font-size: 11px;
+      font-size: 12px; /* 從 11px 調大 */
       font-weight: bold;
       color: var(--down-color);
-      min-width: 38px;
+      min-width: 42px;
       text-align: right;
     }
 
     .depth-bar-bg {
       flex: 1;
-      height: 4px;
+      height: 5px; /* 稍微微調厚度 */
       background-color: var(--border-color);
       border-radius: 2px;
       overflow: hidden;
@@ -336,7 +336,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 4px 8px;
+      padding: 5px 10px;
       border-radius: 6px;
     }
 
@@ -349,12 +349,12 @@
     }
 
     .depth-price {
-      font-size: 14px;
+      font-size: 15px; /* 從 14px 調大 */
       font-weight: bold;
     }
 
     .depth-vol {
-      font-size: 11px;
+      font-size: 12px; /* 從 11px 調大 */
       font-weight: bold;
       color: var(--text-main);
     }
