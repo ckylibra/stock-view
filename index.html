@@ -29,7 +29,7 @@
     body {
       background-color: var(--bg-color);
       color: var(--text-main);
-      padding: 15px;
+      padding: 10px;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -42,17 +42,17 @@
       max-width: 960px;
       display: flex;
       gap: 10px;
-      margin-bottom: 15px;
+      margin-bottom: 10px;
     }
 
     .top-add-bar input {
       flex: 1;
-      padding: 12px 15px;
+      padding: 10px 12px;
       border-radius: 8px;
       border: 1px solid #444;
       background-color: var(--panel-bg);
       color: #fff;
-      font-size: 16px; 
+      font-size: 15px; 
     }
 
     .top-add-bar input:focus {
@@ -61,12 +61,12 @@
     }
 
     .top-add-bar button {
-      padding: 12px 20px;
+      padding: 10px 18px;
       border-radius: 8px;
       border: none;
       background-color: var(--accent);
       color: #fff;
-      font-size: 16px;
+      font-size: 15px;
       font-weight: bold;
       cursor: pointer;
       white-space: nowrap;
@@ -82,15 +82,15 @@
       max-width: 960px;
       display: grid;
       grid-template-columns: 1fr; 
-      gap: 12px;
+      gap: 8px;
     }
 
-    /* 個別報價卡片 */
+    /* 個別報價卡片 (調緊高度) */
     .stock-panel {
       background-color: var(--panel-bg);
-      border-radius: 12px;
-      padding: 12px 15px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      border-radius: 10px;
+      padding: 8px 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -108,16 +108,17 @@
       opacity: 0.3;
     }
 
-    /* 卡片頂部 (標題左、移除按鈕右) */
+    /* 卡片頂部 */
     .card-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
     }
 
+    /* 縮小股票名稱 */
     .title {
-      font-size: 18px;
+      font-size: 15px;
       font-weight: bold;
       white-space: nowrap;
       overflow: hidden;
@@ -129,9 +130,9 @@
       color: var(--down-color);
       border: 1px solid var(--down-color);
       border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      font-size: 12px;
+      width: 22px;
+      height: 22px;
+      font-size: 11px;
       font-weight: bold;
       display: flex;
       justify-content: center;
@@ -144,11 +145,11 @@
     .data-scroll-row {
       display: flex;
       align-items: baseline;
-      gap: 14px;
+      gap: 12px;
       white-space: nowrap;
       overflow-x: auto;
       width: 100%;
-      padding-bottom: 4px;
+      padding-bottom: 2px;
       cursor: default;
     }
     
@@ -157,19 +158,20 @@
       display: none; 
     }
 
+    /* 縮小股價文字 */
     .price {
-      font-size: 26px;
+      font-size: 20px;
       font-weight: bold;
     }
 
     .change {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: bold;
-      margin-right: 8px;
+      margin-right: 6px;
     }
 
     .info-item {
-      font-size: 13px;
+      font-size: 12px;
       color: var(--text-muted);
     }
 
@@ -210,10 +212,8 @@
       }
     }
 
-    // 頁面載入時請求螢幕常亮
     requestWakeLock();
 
-    // 當切換分頁或應用程式回來時，自動重新啟用螢幕常亮
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'visible') {
         await requestWakeLock();
@@ -224,7 +224,6 @@
     const STORAGE_KEY = 'hk_stock_watchlist_user_data';
     let nextId = 0;
 
-    // 讀取手機本地儲存的股票代號清單
     function loadStockList() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -237,7 +236,6 @@
           console.warn("讀取歷史紀錄失敗，恢復使用預設列表", e);
         }
       }
-      // 首次開啟網頁時的預設股票列表
       return [
         { id: nextId++, symbol: "HSI" },
         { id: nextId++, symbol: "00753" },
@@ -246,7 +244,6 @@
       ];
     }
 
-    // 將目前的股票代號與排序寫入手機本地記憶
     function saveStockList() {
       const symbols = stockList.map(item => item.symbol);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(symbols));
@@ -255,14 +252,12 @@
     let stockList = loadStockList();
     let timerId = null;
 
-    // 監聽 Enter 鍵直接新增
     document.getElementById('newStockInput').addEventListener('keypress', function (e) {
       if (e.key === 'Enter') {
         addStock();
       }
     });
 
-    // 生成單個卡片 HTML 模版
     function createCardHtml(item) {
       return `
         <div class="stock-panel" id="panel-${item.id}" draggable="true">
@@ -282,7 +277,6 @@
       `;
     }
 
-    // 初始化渲染列表
     function renderGridUI() {
       const container = document.getElementById("gridContainer");
       container.innerHTML = stockList.map(item => createCardHtml(item)).join("");
@@ -292,7 +286,6 @@
     function initDragAndDrop() {
       const container = document.getElementById("gridContainer");
 
-      // 1. 電腦端 Drag & Drop API
       container.addEventListener("dragstart", (e) => {
         const card = e.target.closest(".stock-panel");
         if (!card) return;
@@ -320,7 +313,6 @@
         }
       });
 
-      // 2. 行動端 Touch 觸控滑動支援
       let touchedCard = null;
 
       container.addEventListener("touchstart", (e) => {
