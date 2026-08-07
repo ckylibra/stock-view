@@ -53,13 +53,21 @@
       transition: background-color 0.2s ease, color 0.2s ease;
     }
 
-    /* 頂部統一新增及模式切換區塊 */
-    .top-add-bar {
+    /* 頂部容器 */
+    .top-bar-wrapper {
       width: 100%;
       max-width: 960px;
       display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    /* 頂部統一新增及模式切換區塊 */
+    .top-add-bar {
+      width: 100%;
+      display: flex;
       gap: 8px;
-      margin-bottom: 10px;
     }
 
     .top-add-bar input {
@@ -101,6 +109,26 @@
       border: 1px solid var(--border-color) !important;
     }
 
+    /* 市場狀態提示列 */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: 0 2px;
+    }
+
+    .status-badge {
+      font-weight: bold;
+      margin-left: 6px;
+      padding: 2px 10px;
+      background-color: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      color: var(--text-main);
+    }
+
     /* 單行垂直佈局區域 */
     .grid-container {
       width: 100%;
@@ -120,18 +148,32 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
-      cursor: grab;
       user-select: none;
       transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.2s ease;
-    }
-
-    .stock-panel:active {
-      cursor: grabbing;
     }
 
     /* 拖動中的卡片樣式 */
     .stock-panel.dragging {
       opacity: 0.3;
+    }
+
+    /* ===== 價格變動閃爍動畫 ===== */
+    @keyframes flashGreen {
+      0% { background-color: rgba(0, 230, 118, 0.35); }
+      100% { background-color: var(--panel-bg); }
+    }
+
+    @keyframes flashRed {
+      0% { background-color: rgba(255, 82, 82, 0.35); }
+      100% { background-color: var(--panel-bg); }
+    }
+
+    .flash-up {
+      animation: flashGreen 0.8s ease-out;
+    }
+
+    .flash-down {
+      animation: flashRed 0.8s ease-out;
     }
 
     /* 卡片頂部 */
@@ -140,6 +182,30 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 4px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    /* 專屬拖曳握把 (⋮⋮) */
+    .drag-handle {
+      cursor: grab;
+      color: var(--text-muted);
+      font-weight: bold;
+      font-size: 16px;
+      padding: 0 8px 0 0;
+      user-select: none;
+      touch-action: none; /* 防止手機觸控滾動干擾 */
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .drag-handle:active {
+      cursor: grabbing;
     }
 
     /* 股票名稱 */
@@ -205,11 +271,17 @@
 </head>
 <body>
 
-  <!-- 頂部：輸入框 + 新增按鈕 + 白天/夜間切換按鈕 -->
-  <div class="top-add-bar">
-    <input type="text" id="newStockInput" placeholder="輸入代號 (如: HSI 或 0700)">
-    <button onclick="addStock()">新增</button>
-    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️ 日間</button>
+  <!-- 頂部容器：輸入/按鈕 + 市場狀態 -->
+  <div class="top-bar-wrapper">
+    <div class="top-add-bar">
+      <input type="text" id="newStockInput" placeholder="輸入代號 (如: HSI 或 0700)">
+      <button onclick="addStock()">新增</button>
+      <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️ 日間</button>
+    </div>
+    <div class="status-bar">
+      <span>港股狀態：</span>
+      <span id="marketStatusBadge" class="status-badge">載入中...</span>
+    </div>
   </div>
 
   <!-- 卡片列表區域 -->
@@ -314,9 +386,12 @@
 
     function createCardHtml(item) {
       return `
-        <div class="stock-panel" id="panel-${item.id}" draggable="true">
+        <div class="stock-panel" id="panel-${item.id}">
           <div class="card-header">
-            <div class="title" id="title-${item.id}">載入中...</div>
+            <div class="header-left">
+              <span class="drag-handle" title="拖動排序">⋮⋮</span>
+              <div class="title" id="title-${item.id}">載入中...</div>
+            </div>
             <button class="remove-btn" onclick="removeStock(${item.id})" draggable="false">✕</button>
           </div>
           <div class="data-scroll-row">
@@ -336,13 +411,28 @@
       container.innerHTML = stockList.map(item => createCardHtml(item)).join("");
     }
 
-    /* ================= 拖拽排序核心邏輯 ================= */
+    /* ================= 專屬握把 (⋮⋮) 拖拽排序邏輯 ================= */
     function initDragAndDrop() {
       const container = document.getElementById("gridContainer");
 
-      container.addEventListener("dragstart", (e) => {
+      // 電腦端：只有滑動至 .drag-handle 握把時才允許拖拽
+      container.addEventListener("mousedown", (e) => {
         const card = e.target.closest(".stock-panel");
         if (!card) return;
+
+        if (e.target.closest(".drag-handle")) {
+          card.setAttribute("draggable", "true");
+        } else {
+          card.setAttribute("draggable", "false");
+        }
+      });
+
+      container.addEventListener("dragstart", (e) => {
+        const card = e.target.closest(".stock-panel");
+        if (!card || card.getAttribute("draggable") !== "true") {
+          e.preventDefault();
+          return;
+        }
         card.classList.add("dragging");
         e.dataTransfer.effectAllowed = "move";
       });
@@ -351,6 +441,7 @@
         const card = e.target.closest(".stock-panel");
         if (!card) return;
         card.classList.remove("dragging");
+        card.setAttribute("draggable", "false");
         syncStockListOrder();
       });
 
@@ -367,10 +458,11 @@
         }
       });
 
+      // 行動端（觸控）：只有點擊 .drag-handle 握把時才啟動拖放
       let touchedCard = null;
 
       container.addEventListener("touchstart", (e) => {
-        if (e.target.closest(".remove-btn") || e.target.closest(".data-scroll-row")) return;
+        if (!e.target.closest(".drag-handle")) return; // 非握把區域直接忽視，保留正常橫向/縱向滾動
 
         const card = e.target.closest(".stock-panel");
         if (!card) return;
@@ -441,7 +533,7 @@
         const container = document.getElementById("gridContainer");
         container.insertAdjacentHTML('beforeend', createCardHtml(newItem));
 
-        fetchAndRenderSlot(newItem);
+        updateAllStocks();
       }
     }
 
@@ -451,46 +543,89 @@
       
       const card = document.getElementById(`panel-${id}`);
       if (card) card.remove();
-
-      const script = document.getElementById(`jsonp-script-${id}`);
-      if (script) script.remove();
     }
 
-    function isHKEXTradingTime() {
+    /* ================= 港股交易狀態判定 ================= */
+    function updateMarketStatus() {
       const hkDateString = new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' });
       const now = new Date(hkDateString);
-      
       const day = now.getDay();
-      if (day === 0 || day === 6) return false;
+      const statusBadge = document.getElementById("marketStatusBadge");
+
+      // 週末判定
+      if (day === 0 || day === 6) {
+        if (statusBadge) statusBadge.innerText = "⚪ 非交易日";
+        return false;
+      }
 
       const hours = now.getHours();
       const minutes = now.getMinutes();
       const timeInMinutes = hours * 60 + minutes;
 
-      const mStart = 9 * 60;       // 09:00
-      const mEnd = 12 * 60;        // 12:00
-      const aStart = 13 * 60;      // 13:00
-      const aEnd = 16 * 60 + 10;   // 16:10
+      const mStart = 9 * 60;       // 09:00 (早市 / 競價)
+      const mEnd = 12 * 60;        // 12:00 (早市收市)
+      const aStart = 13 * 60;      // 13:00 (午市開市)
+      const aEnd = 16 * 60 + 10;   // 16:10 (收市競價結束)
 
-      return (timeInMinutes >= mStart && timeInMinutes <= mEnd) ||
-             (timeInMinutes >= aStart && timeInMinutes <= aEnd);
-    }
+      let isTrading = false;
+      let statusText = "🔴 已收市";
 
-    function fetchAndRenderSlot(item) {
-      const symbol = item.symbol.trim();
-      const isIndex = symbol.toUpperCase() === 'HSI' || symbol.toUpperCase() === 'HKHSI';
-
-      let url, varName;
-      if (isIndex) {
-        url = `https://qt.gtimg.cn/q=s_hkHSI`;
-        varName = `v_s_hkHSI`;
+      if ((timeInMinutes >= mStart && timeInMinutes < mEnd) || (timeInMinutes >= aStart && timeInMinutes <= aEnd)) {
+        statusText = "🟢 盤中交易";
+        isTrading = true;
+      } else if (timeInMinutes >= mEnd && timeInMinutes < aStart) {
+        statusText = "🟡 午休";
+        isTrading = false;
       } else {
-        const cleanCode = symbol.toUpperCase().replace('.HK', '').trim().padStart(5, '0');
-        url = `https://qt.gtimg.cn/q=r_hk${cleanCode}`;
-        varName = `v_r_hk${cleanCode}`;
+        statusText = "🔴 已收市";
+        isTrading = false;
       }
 
-      const scriptId = `jsonp-script-${item.id}`;
+      if (statusBadge) statusBadge.innerText = statusText;
+      return isTrading;
+    }
+
+    /* ================= 批次請求 (Batch API Request) 核心邏輯 ================= */
+    function updateAllStocks() {
+      if (timerId) {
+        clearTimeout(timerId);
+        timerId = null;
+      }
+
+      const isTrading = updateMarketStatus();
+
+      if (stockList.length === 0) {
+        scheduleNextUpdate(isTrading);
+        return;
+      }
+
+      // 1. 組合所有股票的 API 參數與全域變數對照表
+      const queryParts = [];
+      const itemVarMap = new Map();
+
+      stockList.forEach(item => {
+        const symbol = item.symbol.trim();
+        const isIndex = symbol.toUpperCase() === 'HSI' || symbol.toUpperCase() === 'HKHSI';
+        let param, varName;
+
+        if (isIndex) {
+          param = 's_hkHSI';
+          varName = 'v_s_hkHSI';
+        } else {
+          const cleanCode = symbol.toUpperCase().replace('.HK', '').trim().padStart(5, '0');
+          param = `r_hk${cleanCode}`;
+          varName = `v_r_hk${cleanCode}`;
+        }
+
+        queryParts.push(param);
+        itemVarMap.set(item.id, varName);
+      });
+
+      // 2. 建立單一批次 Script 請求
+      const uniqueParams = [...new Set(queryParts)].join(',');
+      const url = `https://qt.gtimg.cn/q=${uniqueParams}`;
+
+      const scriptId = `batch-jsonp-script`;
       const oldScript = document.getElementById(scriptId);
       if (oldScript) oldScript.remove();
 
@@ -499,122 +634,149 @@
       script.src = url;
 
       script.onload = () => {
-        const titleEl = document.getElementById(`title-${item.id}`);
-        if (!titleEl) return; 
+        // 3. 請求完成後，依序解析每隻股票資料
+        stockList.forEach(item => {
+          const varName = itemVarMap.get(item.id);
+          const dataStr = window[varName];
+          parseAndRenderStock(item, dataStr);
+        });
 
-        const dataStr = window[varName];
-        if (dataStr && dataStr.includes('~')) {
-          const parts = dataStr.split('~');
-          const stockName = s2hk(parts[1]); 
+        scheduleNextUpdate(isTrading);
+      };
 
-          if (isIndex) {
-            if (parts.length > 5) {
-              const price = parseFloat(parts[3]);
-              const change = parseFloat(parts[4]);
-              const changePct = parseFloat(parts[5]);
-              const turnover = parseFloat(parts[6]) || 0.0;
-
-              titleEl.innerText = `${stockName} (${parts[2]})`;
-              const priceEl = document.getElementById(`price-${item.id}`);
-              const changeEl = document.getElementById(`change-${item.id}`);
-              
-              priceEl.innerText = price.toFixed(2);
-
-              let color = 'var(--flat-color)';
-              let prefix = '';
-              if (change > 0) {
-                color = 'var(--up-color)';
-                prefix = '▲ +';
-              } else if (change < 0) {
-                color = 'var(--down-color)';
-                prefix = '▼ ';
-              }
-
-              priceEl.style.color = color;
-              changeEl.style.color = color;
-              changeEl.innerText = `${prefix}${change.toFixed(2)} (${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
-
-              document.getElementById(`high-${item.id}`).innerText = `最高: --`;
-              document.getElementById(`low-${item.id}`).innerText = `最低: --`;
-              document.getElementById(`vol-${item.id}`).innerText = `大市成交: ${(turnover / 1e8).toFixed(2)} 億`;
-              
-              const timeString = new Date().toLocaleTimeString('zh-HK', { hour12: false });
-              document.getElementById(`time-${item.id}`).innerText = `更新: ${timeString}`;
-              return;
-            }
-          } else {
-            if (parts.length > 34 && parts[1] !== '') {
-              const price = parseFloat(parts[3]);
-              const prevClose = parseFloat(parts[4]);
-              const change = parts[31] ? parseFloat(parts[31]) : (price - prevClose);
-              const changePct = parts[32] ? parseFloat(parts[32]) : 0.0;
-              const high = parseFloat(parts[33]) || 0.0;
-              const low = parseFloat(parts[34]) || 0.0;
-              const volume = parts[6] ? parseFloat(parts[6]) : 0.0;
-              
-              let updateTime = parts[30] || new Date().toLocaleTimeString('zh-HK', { hour12: false });
-              if(updateTime.length > 8 && updateTime.includes(" ")) {
-                  updateTime = updateTime.split(" ")[1]; 
-              }
-
-              titleEl.innerText = `${stockName} (${parts[2]}.HK)`;
-              const priceEl = document.getElementById(`price-${item.id}`);
-              const changeEl = document.getElementById(`change-${item.id}`);
-              
-              priceEl.innerText = price.toFixed(3);
-
-              let color = 'var(--flat-color)';
-              let prefix = '';
-              if (change > 0) {
-                color = 'var(--up-color)';
-                prefix = '▲ +';
-              } else if (change < 0) {
-                color = 'var(--down-color)';
-                prefix = '▼ ';
-              }
-
-              priceEl.style.color = color;
-              changeEl.style.color = color;
-              changeEl.innerText = `${prefix}${change.toFixed(3)} (${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
-
-              document.getElementById(`high-${item.id}`).innerText = `最高: ${high.toFixed(3)}`;
-              document.getElementById(`low-${item.id}`).innerText = `最低: ${low.toFixed(3)}`;
-
-              let volStr = '';
-              if (volume >= 1e8) {
-                volStr = `${(volume / 1e8).toFixed(2)} 億`;
-              } else if (volume >= 1e4) {
-                volStr = `${(volume / 1e4).toFixed(2)} 萬`;
-              } else {
-                volStr = `${Math.floor(volume)}`;
-              }
-              document.getElementById(`vol-${item.id}`).innerText = `成交: ${volStr}`;
-              document.getElementById(`time-${item.id}`).innerText = `更新: ${updateTime}`;
-              return;
-            }
-          }
-        }
-        titleEl.innerText = "查無此代號";
+      script.onerror = () => {
+        scheduleNextUpdate(isTrading);
       };
 
       document.body.appendChild(script);
     }
 
-    function updateAllStocks() {
-      if (timerId) {
-        clearTimeout(timerId);
-        timerId = null;
-      }
-
-      stockList.forEach(item => {
-        fetchAndRenderSlot(item);
-      });
-
-      if (isHKEXTradingTime()) {
-        timerId = setTimeout(updateAllStocks, 1000);
+    function scheduleNextUpdate(isTrading) {
+      if (isTrading) {
+        timerId = setTimeout(updateAllStocks, 1000); // 盤中 1 秒更新
       } else {
-        timerId = setTimeout(updateAllStocks, 180000); 
+        timerId = setTimeout(updateAllStocks, 60000); // 非盤中 1 分鐘檢查一次
       }
+    }
+
+    /* ================= 解析數據與閃爍觸發 ================= */
+    function parseAndRenderStock(item, dataStr) {
+      const titleEl = document.getElementById(`title-${item.id}`);
+      if (!titleEl) return; 
+
+      if (dataStr && dataStr.includes('~')) {
+        const parts = dataStr.split('~');
+        const stockName = s2hk(parts[1]); 
+        const symbol = item.symbol.trim();
+        const isIndex = symbol.toUpperCase() === 'HSI' || symbol.toUpperCase() === 'HKHSI';
+
+        if (isIndex && parts.length > 5) {
+          const price = parseFloat(parts[3]);
+          const change = parseFloat(parts[4]);
+          const changePct = parseFloat(parts[5]);
+          const turnover = parseFloat(parts[6]) || 0.0;
+
+          titleEl.innerText = `${stockName} (${parts[2]})`;
+          const priceEl = document.getElementById(`price-${item.id}`);
+          const changeEl = document.getElementById(`change-${item.id}`);
+          
+          priceEl.innerText = price.toFixed(2);
+
+          let color = 'var(--flat-color)';
+          let prefix = '';
+          if (change > 0) {
+            color = 'var(--up-color)';
+            prefix = '▲ +';
+          } else if (change < 0) {
+            color = 'var(--down-color)';
+            prefix = '▼ ';
+          }
+
+          priceEl.style.color = color;
+          changeEl.style.color = color;
+          changeEl.innerText = `${prefix}${change.toFixed(2)} (${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+
+          document.getElementById(`high-${item.id}`).innerText = `最高: --`;
+          document.getElementById(`low-${item.id}`).innerText = `最低: --`;
+          document.getElementById(`vol-${item.id}`).innerText = `大市成交: ${(turnover / 1e8).toFixed(2)} 億`;
+          
+          const timeString = new Date().toLocaleTimeString('zh-HK', { hour12: false });
+          document.getElementById(`time-${item.id}`).innerText = `更新: ${timeString}`;
+
+          triggerPriceFlash(item, price);
+          return;
+        } else if (!isIndex && parts.length > 34 && parts[1] !== '') {
+          const price = parseFloat(parts[3]);
+          const prevClose = parseFloat(parts[4]);
+          const change = parts[31] ? parseFloat(parts[31]) : (price - prevClose);
+          const changePct = parts[32] ? parseFloat(parts[32]) : 0.0;
+          const high = parseFloat(parts[33]) || 0.0;
+          const low = parseFloat(parts[34]) || 0.0;
+          const volume = parts[6] ? parseFloat(parts[6]) : 0.0;
+          
+          let updateTime = parts[30] || new Date().toLocaleTimeString('zh-HK', { hour12: false });
+          if(updateTime.length > 8 && updateTime.includes(" ")) {
+              updateTime = updateTime.split(" ")[1]; 
+          }
+
+          titleEl.innerText = `${stockName} (${parts[2]}.HK)`;
+          const priceEl = document.getElementById(`price-${item.id}`);
+          const changeEl = document.getElementById(`change-${item.id}`);
+          
+          priceEl.innerText = price.toFixed(3);
+
+          let color = 'var(--flat-color)';
+          let prefix = '';
+          if (change > 0) {
+            color = 'var(--up-color)';
+            prefix = '▲ +';
+          } else if (change < 0) {
+            color = 'var(--down-color)';
+            prefix = '▼ ';
+          }
+
+          priceEl.style.color = color;
+          changeEl.style.color = color;
+          changeEl.innerText = `${prefix}${change.toFixed(3)} (${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+
+          document.getElementById(`high-${item.id}`).innerText = `最高: ${high.toFixed(3)}`;
+          document.getElementById(`low-${item.id}`).innerText = `最低: ${low.toFixed(3)}`;
+
+          let volStr = '';
+          if (volume >= 1e8) {
+            volStr = `${(volume / 1e8).toFixed(2)} 億`;
+          } else if (volume >= 1e4) {
+            volStr = `${(volume / 1e4).toFixed(2)} 萬`;
+          } else {
+            volStr = `${Math.floor(volume)}`;
+          }
+          document.getElementById(`vol-${item.id}`).innerText = `成交: ${volStr}`;
+          document.getElementById(`time-${item.id}`).innerText = `更新: ${updateTime}`;
+
+          triggerPriceFlash(item, price);
+          return;
+        }
+      }
+      titleEl.innerText = "查無此代號";
+    }
+
+    /* 檢查股價變動並觸發紅綠閃爍動畫 */
+    function triggerPriceFlash(item, newPrice) {
+      const cardEl = document.getElementById(`panel-${item.id}`);
+      if (!cardEl) return;
+
+      if (item.lastPrice !== undefined && item.lastPrice !== null) {
+        if (newPrice > item.lastPrice) {
+          cardEl.classList.remove('flash-up', 'flash-down');
+          void cardEl.offsetWidth; // 強制 DOM 重繪以重新啟動 CSS Keyframe
+          cardEl.classList.add('flash-up');
+        } else if (newPrice < item.lastPrice) {
+          cardEl.classList.remove('flash-up', 'flash-down');
+          void cardEl.offsetWidth; // 強制 DOM 重繪
+          cardEl.classList.add('flash-down');
+        }
+      }
+      item.lastPrice = newPrice;
     }
 
     // 初始化網頁
