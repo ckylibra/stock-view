@@ -263,7 +263,7 @@
 
   <!-- 最頂層單一行：日/夜 > 新增 > 輸入欄 > 狀態 -->
   <div class="top-add-bar">
-    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️ 日</button>
+    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️</button>
     <button onclick="addStock()">新增</button>
     <input type="text" id="newStockInput" placeholder="代號 (如:0700)">
     <span id="marketStatusBadge" class="status-badge">載入中...</span>
@@ -306,7 +306,7 @@
     function updateThemeBtnText(isLight) {
       const btn = document.getElementById('themeToggleBtn');
       if (btn) {
-        btn.innerHTML = isLight ? '🌙 夜' : '☀️ 日';
+        btn.innerHTML = isLight ? '🌙' : '☀️';
       }
     }
 
