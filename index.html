@@ -110,7 +110,7 @@
       border: 1px solid var(--border-color) !important;
     }
 
-    /* 市場狀態標籤 (最右側) */
+    /* 市場狀態標籤 (靠右靠齊起點) */
     .status-badge {
       font-weight: bold;
       font-size: calc(12px * var(--font-scale));
@@ -384,14 +384,14 @@
 </head>
 <body>
 
-  <!-- 最頂層單一行：日/夜 > 字體控制 > 新增 > 輸入欄 > 狀態 -->
+  <!-- 最頂層單一行：☀️/🌙 > 新增 > 輸入欄 > 狀態 > A- > A+ -->
   <div class="top-add-bar">
-    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️ 日</button>
-    <button class="theme-toggle-btn" onclick="changeFontSize(-1)" title="縮小字體">A-</button>
-    <button class="theme-toggle-btn" onclick="changeFontSize(1)" title="放大字體">A+</button>
+    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️</button>
     <button onclick="addStock()">新增</button>
     <input type="text" id="newStockInput" placeholder="代號 (如:0700)">
     <span id="marketStatusBadge" class="status-badge">載入中...</span>
+    <button class="theme-toggle-btn" onclick="changeFontSize(-1)" title="縮小字體">A-</button>
+    <button class="theme-toggle-btn" onclick="changeFontSize(1)" title="放大字體">A+</button>
   </div>
 
   <!-- 卡片列表區域 -->
@@ -423,7 +423,6 @@
     }
 
     function changeFontSize(delta) {
-      // 每次以 0.1 (10%) 為步階調整，限制範圍於 0.7 倍至 1.5 倍之間
       currentFontScale = Math.round((currentFontScale + delta * 0.1) * 10) / 10;
       if (currentFontScale < 0.7) currentFontScale = 0.7;
       if (currentFontScale > 1.5) currentFontScale = 1.5;
@@ -464,7 +463,7 @@
     function triggerBoxFlash(el, className) {
       if (!el) return;
       el.classList.remove(className);
-      void el.offsetWidth; // 強制重繪 (reflow) 以重新觸發動畫
+      void el.offsetWidth;
       el.classList.add(className);
     }
 
@@ -491,7 +490,7 @@
     function updateThemeBtnText(isLight) {
       const btn = document.getElementById('themeToggleBtn');
       if (btn) {
-        btn.innerHTML = isLight ? '🌙 夜' : '☀️ 日';
+        btn.innerHTML = isLight ? '🌙' : '☀️';
       }
     }
 
