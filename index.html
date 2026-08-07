@@ -824,6 +824,14 @@
       }
     }
 
+    /* 判斷價格相對於前收價的顏色 */
+    function getPriceColor(price, prevClose) {
+      if (!prevClose || price === 0) return 'var(--text-main)';
+      if (price > prevClose) return 'var(--up-color)';
+      if (price < prevClose) return 'var(--down-color)';
+      return 'var(--flat-color)';
+    }
+
     /* ================= 第一檔買賣盤渲染與動態閃爍邏輯 ================= */
     function renderDepthPanel(item) {
       const bidPriceEl = document.getElementById(`bid-price-${item.id}`);
@@ -871,6 +879,7 @@
 
       const bidPrice = item.bidPrice || 0;
       const askPrice = item.askPrice || 0;
+      const prevClose = item.prevClose || 0;
       const bidVol = item.bidVol || 2000;
       const askVol = item.askVol || 2000;
 
@@ -886,8 +895,9 @@
       bidPriceEl.innerText = bidPrice.toFixed(3);
       askPriceEl.innerText = askPrice.toFixed(3);
 
-      bidPriceEl.style.color = 'var(--up-color)';
-      askPriceEl.style.color = 'var(--down-color)';
+      /* ===== 關鍵修改：買賣盤價格顏色相較昨收價（prevClose）計算 ===== */
+      bidPriceEl.style.color = getPriceColor(bidPrice, prevClose);
+      askPriceEl.style.color = getPriceColor(askPrice, prevClose);
 
       const bidVolEl = document.getElementById(`bid-vol-${item.id}`);
       const askVolEl = document.getElementById(`ask-vol-${item.id}`);
@@ -1024,6 +1034,7 @@
 
           item.bidPrice = bidPrice;
           item.askPrice = askPrice;
+          item.prevClose = prevClose; // 儲存前收價供盤口比對
 
           // 更新買賣盤區塊
           renderDepthPanel(item);
