@@ -214,35 +214,30 @@
       }
     });
 
+    // 生成單個卡片 HTML HTML 模版
+    function createCardHtml(item) {
+      return `
+        <div class="stock-panel" id="panel-${item.id}" draggable="true">
+          <div class="card-header">
+            <div class="title" id="title-${item.id}">載入中...</div>
+            <button class="remove-btn" onclick="removeStock(${item.id})" draggable="false">✕</button>
+          </div>
+          <div class="data-scroll-row">
+            <span class="price" id="price-${item.id}">0.000</span>
+            <span class="change" id="change-${item.id}">+0.000 (+0.00%)</span>
+            <span class="info-item" id="high-${item.id}">最高: --</span>
+            <span class="info-item" id="low-${item.id}">最低: --</span>
+            <span class="info-item" id="vol-${item.id}">成交: --</span>
+            <span class="info-item" id="time-${item.id}">更新: --</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // 初始化渲染列表
     function renderGridUI() {
       const container = document.getElementById("gridContainer");
-      container.innerHTML = "";
-
-      stockList.forEach((item) => {
-        const cardHtml = `
-          <div class="stock-panel" id="panel-${item.id}" draggable="true">
-            
-            <div class="card-header">
-              <!-- 標題在左 -->
-              <div class="title" id="title-${item.id}">載入中...</div>
-              <!-- X 移除按鈕在右 -->
-              <button class="remove-btn" onclick="removeStock(${item.id})" draggable="false">✕</button>
-            </div>
-
-            <!-- 所有數據放在同一行，可橫向滑動 -->
-            <div class="data-scroll-row">
-              <span class="price" id="price-${item.id}">0.000</span>
-              <span class="change" id="change-${item.id}">+0.000 (+0.00%)</span>
-              <span class="info-item" id="high-${item.id}">最高: --</span>
-              <span class="info-item" id="low-${item.id}">最低: --</span>
-              <span class="info-item" id="vol-${item.id}">成交: --</span>
-              <span class="info-item" id="time-${item.id}">更新: --</span>
-            </div>
-            
-          </div>
-        `;
-        container.insertAdjacentHTML('beforeend', cardHtml);
-      });
+      container.innerHTML = stockList.map(item => createCardHtml(item)).join("");
     }
 
     /* ================= 拖拽排序核心邏輯 ================= */
@@ -337,21 +332,33 @@
       stockList = newStockList;
     }
 
-    /* ================= 股票資料讀取與邏輯 ================= */
+    /* ================= 股票資料讀取與增刪邏輯 ================= */
     function addStock() {
       const inputEl = document.getElementById('newStockInput');
       const val = inputEl.value.trim();
       if (val) {
-        stockList.push({ id: nextId++, symbol: val }); // 改為 push 放到最下方
+        const newItem = { id: nextId++, symbol: val };
+        stockList.push(newItem);
         inputEl.value = "";
-        renderGridUI();
-        updateAllStocks();
+
+        // 局部插入 DOM，避免整體重繪導致閃爍
+        const container = document.getElementById("gridContainer");
+        container.insertAdjacentHTML('beforeend', createCardHtml(newItem));
+
+        // 僅單獨請求新股票的數據
+        fetchAndRenderSlot(newItem);
       }
     }
 
     function removeStock(id) {
       stockList = stockList.filter(item => item.id !== id);
-      renderGridUI();
+      
+      // 直接移除該 DOM 節點，無須整體刷新
+      const card = document.getElementById(`panel-${id}`);
+      if (card) card.remove();
+
+      const script = document.getElementById(`jsonp-script-${id}`);
+      if (script) script.remove();
     }
 
     function isHKEXTradingTime() {
