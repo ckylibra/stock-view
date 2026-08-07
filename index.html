@@ -738,7 +738,7 @@
       if (card) card.remove();
     }
 
-    /* ================= 港股交易狀態判定 (精細模擬港股時段機制) ================= */
+    /* ================= 港股交易狀態判定 (精細模擬港股 CAS 與靜止機制) ================= */
     function updateMarketStatus() {
       const hkDateString = new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' });
       const now = new Date(hkDateString);
@@ -764,7 +764,7 @@
         isTrading = true;
         isAuction = true;
       } 
-      // 09:20 - 09:30 (競價完成 - 對盤結束拆分價差，並完全凍結量能至開盤)
+      // 09:20 - 09:30 (競價完成 - 拆分價差，並完全凍結盤口至 09:30 開盤)
       else if (timeInMinutes >= 9 * 60 + 20 && timeInMinutes < 9 * 60 + 30) {
         statusText = "🟡 競價暫停";
         isTrading = false; // 完全凍結
@@ -788,8 +788,14 @@
         isTrading = true;
         isAuction = false;
       }
-      // 16:00 - 16:10 (收市競價 - 活躍跳動、買賣價重合)
-      else if (timeInMinutes >= 16 * 60 && timeInMinutes < 16 * 60 + 10) {
+      // 16:00 - 16:01 (計算參考價 - 凍結 16:00 最後買賣盤 1 分鐘)
+      else if (timeInMinutes === 16 * 60) {
+        statusText = "🟡 計算參考價";
+        isTrading = false; // 凍結 16:00 買賣盤數量不變
+        isAuction = false; // 保持 16:00 前的買賣價差
+      }
+      // 16:01 - 16:10 (正式收市競價 - 重啟競價對盤，買賣價重合)
+      else if (timeInMinutes >= 16 * 60 + 1 && timeInMinutes < 16 * 60 + 10) {
         statusText = "🟡 收市競價";
         isTrading = true;
         isAuction = true;
@@ -975,7 +981,7 @@
           if (sellChanged && sellBoxEl) triggerBoxFlash(sellBoxEl, 'flash-sell');
         }
       } 
-      // 2. 非交易時段 (如 09:20-09:30、午休、收市後)：鎖定上次記憶，完全不進行隨機跳動
+      // 2. 非交易時段 (如 09:20-09:30、午休、16:00-16:01 計算參考價、16:10後)：鎖定上次記憶，不進行隨機跳動
       else {
         applyDepthCache(item);
 
@@ -1137,11 +1143,11 @@
           const market = updateMarketStatus();
 
           if (market.isAuction) {
-            // 競價時段內 (09:00-09:20, 16:00-16:10)：買賣價格保持一致 (對盤價)
+            // 競價時段內 (09:00-09:20, 16:01-16:10)：買賣價格保持一致 (對盤價)
             bidPrice = price;
             askPrice = price;
           } else {
-            // 持續交易時段與暫停時段：買賣價拆分 (Ask > Bid 至少 1 個 Tick)
+            // 持續交易時段與暫停/參考價時段：買賣價拆分 (Ask > Bid 至少 1 個 Tick)
             if (bidPrice <= 0 || askPrice <= 0 || bidPrice >= askPrice) {
               bidPrice = price;
               askPrice = parseFloat((price + tickSize).toFixed(3));
