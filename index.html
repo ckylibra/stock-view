@@ -94,6 +94,19 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
+      cursor: grab; /* 提示可拖曳 */
+      user-select: none;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    .stock-panel:active {
+      cursor: grabbing;
+    }
+
+    /* 拖動中的卡片樣式 */
+    .stock-panel.dragging {
+      opacity: 0.4;
+      border: 2px dashed var(--accent);
     }
 
     /* 卡片頂部 (標題左、移除按鈕右) */
@@ -137,6 +150,7 @@
       overflow-x: auto; /* 超出螢幕可左右滑動 */
       width: 100%;
       padding-bottom: 4px;
+      cursor: default;
     }
     
     /* 隱藏滾動條保持美觀 */
@@ -152,7 +166,7 @@
     .change {
       font-size: 15px;
       font-weight: bold;
-      margin-right: 8px; /* 與後方高低點資訊隔開一點 */
+      margin-right: 8px;
     }
 
     .info-item {
@@ -207,13 +221,13 @@
 
       stockList.forEach((item) => {
         const cardHtml = `
-          <div class="stock-panel" id="panel-${item.id}">
+          <div class="stock-panel" id="panel-${item.id}" draggable="true">
             
             <div class="card-header">
               <!-- 標題在左 -->
               <div class="title" id="title-${item.id}">載入中...</div>
               <!-- X 移除按鈕在右 -->
-              <button class="remove-btn" onclick="removeStock(${item.id})">✕</button>
+              <button class="remove-btn" onclick="removeStock(${item.id})" draggable="false">✕</button>
             </div>
 
             <!-- 所有數據放在同一行，可橫向滑動 -->
@@ -232,6 +246,102 @@
       });
     }
 
+    /* ================= 拖拽排序核心邏輯 ================= */
+    function initDragAndDrop() {
+      const container = document.getElementById("gridContainer");
+
+      // 1. 電腦端 Drag & Drop API
+      container.addEventListener("dragstart", (e) => {
+        const card = e.target.closest(".stock-panel");
+        if (!card) return;
+        card.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+      });
+
+      container.addEventListener("dragend", (e) => {
+        const card = e.target.closest(".stock-panel");
+        if (!card) return;
+        card.classList.remove("dragging");
+        syncStockListOrder();
+      });
+
+      container.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        const dragging = container.querySelector(".dragging");
+        if (!dragging) return;
+
+        const afterElement = getDragAfterElement(container, e.clientY);
+        if (afterElement == null) {
+          container.appendChild(dragging);
+        } else {
+          container.insertBefore(dragging, afterElement);
+        }
+      });
+
+      // 2. 行動端 Touch 觸控滑動支援
+      let touchedCard = null;
+
+      container.addEventListener("touchstart", (e) => {
+        // 避開按鈕與內部橫向滾動區，避免影響橫滑與點擊操作
+        if (e.target.closest(".remove-btn") || e.target.closest(".data-scroll-row")) return;
+
+        const card = e.target.closest(".stock-panel");
+        if (!card) return;
+
+        touchedCard = card;
+        touchedCard.classList.add("dragging");
+      }, { passive: true });
+
+      container.addEventListener("touchmove", (e) => {
+        if (!touchedCard) return;
+        const touch = e.touches[0];
+        const afterElement = getDragAfterElement(container, touch.clientY);
+        if (afterElement == null) {
+          container.appendChild(touchedCard);
+        } else {
+          container.insertBefore(touchedCard, afterElement);
+        }
+      }, { passive: true });
+
+      container.addEventListener("touchend", () => {
+        if (!touchedCard) return;
+        touchedCard.classList.remove("dragging");
+        touchedCard = null;
+        syncStockListOrder();
+      });
+    }
+
+    // 計算當前拖動位置應該插在那個元素之前
+    function getDragAfterElement(container, y) {
+      const draggableElements = [...container.querySelectorAll('.stock-panel:not(.dragging)')];
+
+      return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+          return { offset: offset, element: child };
+        } else {
+          return closest;
+        }
+      }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    // 同步 DOM 順序至 stockList 陣列
+    function syncStockListOrder() {
+      const container = document.getElementById("gridContainer");
+      const cards = container.querySelectorAll(".stock-panel");
+      const newStockList = [];
+
+      cards.forEach(card => {
+        const id = parseInt(card.id.replace("panel-", ""), 10);
+        const item = stockList.find(s => s.id === id);
+        if (item) newStockList.push(item);
+      });
+
+      stockList = newStockList;
+    }
+
+    /* ================= 股票資料讀取與邏輯 ================= */
     function addStock() {
       const inputEl = document.getElementById('newStockInput');
       const val = inputEl.value.trim();
@@ -297,8 +407,6 @@
         const dataStr = window[varName];
         if (dataStr && dataStr.includes('~')) {
           const parts = dataStr.split('~');
-          
-          // 在此處將股票名稱轉為繁體
           const stockName = s2hk(parts[1]); 
 
           if (isIndex) {
@@ -411,7 +519,9 @@
       }
     }
 
+    // 初始化 UI、拖拽事件與數據
     renderGridUI();
+    initDragAndDrop();
     updateAllStocks();
   </script>
 </body>
