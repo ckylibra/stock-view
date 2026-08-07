@@ -197,14 +197,39 @@
       console.warn("繁簡轉換庫載入失敗");
     }
 
+    /* ================= 本地記憶功能 (localStorage) ================= */
+    const STORAGE_KEY = 'hk_stock_watchlist_user_data';
     let nextId = 0;
-    let stockList = [
-      { id: nextId++, symbol: "HSI" },
-      { id: nextId++, symbol: "00753" },
-      { id: nextId++, symbol: "01800" },
-      { id: nextId++, symbol: "02333" }
-    ];
 
+    // 讀取手機本地儲存的股票代號清單
+    function loadStockList() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map(symbol => ({ id: nextId++, symbol: symbol }));
+          }
+        } catch (e) {
+          console.warn("讀取歷史紀錄失敗，恢復使用預設列表", e);
+        }
+      }
+      // 首次開啟網頁時的預設股票列表
+      return [
+        { id: nextId++, symbol: "HSI" },
+        { id: nextId++, symbol: "00753" },
+        { id: nextId++, symbol: "01800" },
+        { id: nextId++, symbol: "02333" }
+      ];
+    }
+
+    // 將目前的股票代號與排序寫入手機本地記憶
+    function saveStockList() {
+      const symbols = stockList.map(item => item.symbol);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(symbols));
+    }
+
+    let stockList = loadStockList();
     let timerId = null;
 
     // 監聽 Enter 鍵直接新增
@@ -214,7 +239,7 @@
       }
     });
 
-    // 生成單個卡片 HTML HTML 模版
+    // 生成單個卡片 HTML 模版
     function createCardHtml(item) {
       return `
         <div class="stock-panel" id="panel-${item.id}" draggable="true">
@@ -330,6 +355,7 @@
       });
 
       stockList = newStockList;
+      saveStockList(); // <-- 同步排序後儲存到本地記憶
     }
 
     /* ================= 股票資料讀取與增刪邏輯 ================= */
@@ -339,6 +365,8 @@
       if (val) {
         const newItem = { id: nextId++, symbol: val };
         stockList.push(newItem);
+        saveStockList(); // <-- 新增後儲存到本地記憶
+
         inputEl.value = "";
 
         // 局部插入 DOM，避免整體重繪導致閃爍
@@ -352,6 +380,7 @@
 
     function removeStock(id) {
       stockList = stockList.filter(item => item.id !== id);
+      saveStockList(); // <-- 刪除後儲存到本地記憶
       
       // 直接移除該 DOM 節點，無須整體刷新
       const card = document.getElementById(`panel-${id}`);
