@@ -94,7 +94,7 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
-      cursor: grab; /* 提示可拖曳 */
+      cursor: grab;
       user-select: none;
       transition: transform 0.15s ease, opacity 0.15s ease;
     }
@@ -103,7 +103,7 @@
       cursor: grabbing;
     }
 
-    /* 拖動中的卡片樣式（已移除藍色虛線） */
+    /* 拖動中的卡片樣式 */
     .stock-panel.dragging {
       opacity: 0.3;
     }
@@ -145,8 +145,8 @@
       display: flex;
       align-items: baseline;
       gap: 14px;
-      white-space: nowrap; /* 強制不換行 */
-      overflow-x: auto; /* 超出螢幕可左右滑動 */
+      white-space: nowrap;
+      overflow-x: auto;
       width: 100%;
       padding-bottom: 4px;
       cursor: default;
@@ -188,7 +188,7 @@
 
   <script>
     // 初始化簡轉繁轉換器 (從簡體 cn 轉到香港繁體 hk)
-    let s2hk = (text) => text; // 預設為不轉換（避免載入失敗時報錯）
+    let s2hk = (text) => text; 
     try {
       if (typeof OpenCC !== 'undefined') {
         s2hk = OpenCC.Converter({ from: 'cn', to: 'hk' });
@@ -342,7 +342,7 @@
       const inputEl = document.getElementById('newStockInput');
       const val = inputEl.value.trim();
       if (val) {
-        stockList.unshift({ id: nextId++, symbol: val });
+        stockList.push({ id: nextId++, symbol: val }); // 改為 push 放到最下方
         inputEl.value = "";
         renderGridUI();
         updateAllStocks();
