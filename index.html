@@ -19,6 +19,8 @@
       --down-color: #FF5252; 
       --flat-color: #AAAAAA;
       --accent: #1f538d;
+      --buy-bg: rgba(0, 230, 118, 0.12);
+      --sell-bg: rgba(255, 82, 82, 0.12);
     }
 
     /* 白天（亮色）模式變數 */
@@ -33,6 +35,8 @@
       --down-color: #de350b; /* 鮮紅跌 */
       --flat-color: #65676b;
       --accent: #1f538d;
+      --buy-bg: #e8f8f0;
+      --sell-bg: #ffebe6;
     }
 
     * {
@@ -128,21 +132,21 @@
       gap: 8px;
     }
 
-    /* 個別報價卡片 (緊湊高度) */
+    /* 個別報價卡片 */
     .stock-panel {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
       border-radius: 10px;
-      padding: 8px 12px;
+      padding: 10px 12px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
       display: flex;
       flex-direction: column;
       justify-content: center;
       user-select: none;
+      cursor: pointer;
       transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.2s ease;
     }
 
-    /* 拖動中的卡片樣式 */
     .stock-panel.dragging {
       opacity: 0.3;
     }
@@ -232,15 +236,12 @@
       overflow-x: auto;
       width: 100%;
       padding-bottom: 2px;
-      cursor: default;
     }
     
-    /* 隱藏滾動條保持美觀 */
     .data-scroll-row::-webkit-scrollbar {
       display: none; 
     }
 
-    /* 股價文字 */
     .price {
       font-size: 20px;
       font-weight: bold;
@@ -257,13 +258,112 @@
       color: var(--text-muted);
     }
 
+    /* ===== 第一檔盤口展開區塊樣式 (模仿截圖) ===== */
+    .depth-panel {
+      display: none;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--border-color);
+    }
+
+    .stock-panel.expanded .depth-panel {
+      display: block;
+    }
+
+    .depth-title-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: bold;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    .depth-bar-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .buy-pct-text {
+      font-size: 12px;
+      font-weight: bold;
+      color: var(--up-color);
+      min-width: 45px;
+    }
+
+    .sell-pct-text {
+      font-size: 12px;
+      font-weight: bold;
+      color: var(--down-color);
+      min-width: 45px;
+      text-align: right;
+    }
+
+    .depth-bar-bg {
+      flex: 1;
+      height: 5px;
+      background-color: var(--border-color);
+      border-radius: 3px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .buy-bar-fill {
+      height: 100%;
+      background-color: var(--up-color);
+      width: 50%;
+      transition: width 0.3s ease;
+    }
+
+    .sell-bar-fill {
+      height: 100%;
+      background-color: var(--down-color);
+      width: 50%;
+      transition: width 0.3s ease;
+    }
+
+    .depth-box-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .depth-box {
+      flex: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 6px;
+    }
+
+    .buy-box {
+      background-color: var(--buy-bg);
+    }
+
+    .sell-box {
+      background-color: var(--sell-bg);
+    }
+
+    .depth-price {
+      font-size: 17px;
+      font-weight: bold;
+    }
+
+    .depth-vol {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
   </style>
 </head>
 <body>
 
   <!-- 最頂層單一行：日/夜 > 新增 > 輸入欄 > 狀態 -->
   <div class="top-add-bar">
-    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️</button>
+    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️ 日</button>
     <button onclick="addStock()">新增</button>
     <input type="text" id="newStockInput" placeholder="代號 (如:0700)">
     <span id="marketStatusBadge" class="status-badge">載入中...</span>
@@ -273,7 +373,6 @@
   <div class="grid-container" id="gridContainer"></div>
 
   <script>
-    // 初始化簡轉繁轉換器
     let s2hk = (text) => text; 
     try {
       if (typeof OpenCC !== 'undefined') {
@@ -306,29 +405,22 @@
     function updateThemeBtnText(isLight) {
       const btn = document.getElementById('themeToggleBtn');
       if (btn) {
-        btn.innerHTML = isLight ? '🌙' : '☀️';
+        btn.innerHTML = isLight ? '🌙 夜' : '☀️ 日';
       }
     }
 
-    /* ================= 防止螢幕休眠 (Wake Lock API) ================= */
+    /* ================= 防止螢幕休眠 ================= */
     let wakeLock = null;
-
     async function requestWakeLock() {
       if ('wakeLock' in navigator) {
         try {
           wakeLock = await navigator.wakeLock.request('screen');
-        } catch (err) {
-          console.warn(`螢幕常亮啟用失敗: ${err.name}, ${err.message}`);
-        }
+        } catch (err) {}
       }
     }
-
     requestWakeLock();
-
     document.addEventListener('visibilitychange', async () => {
-      if (document.visibilityState === 'visible') {
-        await requestWakeLock();
-      }
+      if (document.visibilityState === 'visible') await requestWakeLock();
     });
 
     /* ================= 本地記憶功能 (localStorage) ================= */
@@ -343,9 +435,7 @@
           if (Array.isArray(parsed) && parsed.length > 0) {
             return parsed.map(symbol => ({ id: nextId++, symbol: symbol }));
           }
-        } catch (e) {
-          console.warn("讀取歷史紀錄失敗，恢復使用預設列表", e);
-        }
+        } catch (e) {}
       }
       return [
         { id: nextId++, symbol: "HSI" },
@@ -364,14 +454,24 @@
     let timerId = null;
 
     document.getElementById('newStockInput').addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') {
-        addStock();
-      }
+      if (e.key === 'Enter') addStock();
     });
+
+    /* ================= 卡片點擊展開/收折控制 ================= */
+    function toggleCardExpand(id, event) {
+      // 點擊刪除按鈕或拖拽握把時，不觸發展開
+      if (event.target.closest('.remove-btn') || event.target.closest('.drag-handle')) {
+        return;
+      }
+      const card = document.getElementById(`panel-${id}`);
+      if (card) {
+        card.classList.toggle('expanded');
+      }
+    }
 
     function createCardHtml(item) {
       return `
-        <div class="stock-panel" id="panel-${item.id}">
+        <div class="stock-panel" id="panel-${item.id}" onclick="toggleCardExpand(${item.id}, event)">
           <div class="card-header">
             <div class="header-left">
               <span class="drag-handle" title="拖動排序">⋮⋮</span>
@@ -387,6 +487,32 @@
             <span class="info-item" id="vol-${item.id}">成交: --</span>
             <span class="info-item" id="time-${item.id}">更新: --</span>
           </div>
+
+          <!-- 第一檔買賣盤展開區塊 -->
+          <div class="depth-panel" id="depth-${item.id}">
+            <div class="depth-title-row">
+              <span>買盤</span>
+              <span>賣盤</span>
+            </div>
+            <div class="depth-bar-container">
+              <span class="buy-pct-text" id="buy-pct-${item.id}">50.00%</span>
+              <div class="depth-bar-bg">
+                <div class="buy-bar-fill" id="buy-bar-${item.id}" style="width: 50%;"></div>
+                <div class="sell-bar-fill" id="sell-bar-${item.id}" style="width: 50%;"></div>
+              </div>
+              <span class="sell-pct-text" id="sell-pct-${item.id}">50.00%</span>
+            </div>
+            <div class="depth-box-row">
+              <div class="depth-box buy-box">
+                <span class="depth-price" id="bid-price-${item.id}">--</span>
+                <span class="depth-vol" id="bid-vol-${item.id}">--</span>
+              </div>
+              <div class="depth-box sell-box">
+                <span class="depth-price" id="ask-price-${item.id}">--</span>
+                <span class="depth-vol" id="ask-vol-${item.id}">--</span>
+              </div>
+            </div>
+          </div>
         </div>
       `;
     }
@@ -396,7 +522,7 @@
       container.innerHTML = stockList.map(item => createCardHtml(item)).join("");
     }
 
-    /* ================= 專屬握把 (⋮⋮) 拖拽排序邏輯 ================= */
+    /* ================= 拖拽排序邏輯 ================= */
     function initDragAndDrop() {
       const container = document.getElementById("gridContainer");
 
@@ -535,7 +661,6 @@
       const day = now.getDay();
       const statusBadge = document.getElementById("marketStatusBadge");
 
-      // 週末判定
       if (day === 0 || day === 6) {
         if (statusBadge) statusBadge.innerText = "⚪ 非交易日";
         return false;
@@ -545,10 +670,10 @@
       const minutes = now.getMinutes();
       const timeInMinutes = hours * 60 + minutes;
 
-      const mStart = 9 * 60;       // 09:00
-      const mEnd = 12 * 60;        // 12:00
-      const aStart = 13 * 60;      // 13:00
-      const aEnd = 16 * 60 + 10;   // 16:10
+      const mStart = 9 * 60;       
+      const mEnd = 12 * 60;        
+      const aStart = 13 * 60;      
+      const aEnd = 16 * 60 + 10;   
 
       let isTrading = false;
       let statusText = "🔴 已收市";
@@ -568,6 +693,14 @@
       return isTrading;
     }
 
+    /* 格式化股數數量 (如 14000 -> 14K, 1200000 -> 1.2M) */
+    function formatVolDisplay(vol) {
+      if (isNaN(vol) || vol === 0) return "0";
+      if (vol >= 1e6) return (vol / 1e6).toFixed(1) + 'M';
+      if (vol >= 1e3) return (vol / 1e3).toFixed(0) + 'K';
+      return vol.toString();
+    }
+
     /* ================= 批次請求 (Batch API Request) 核心邏輯 ================= */
     function updateAllStocks() {
       if (timerId) {
@@ -582,7 +715,6 @@
         return;
       }
 
-      // 1. 組合所有股票的 API 參數與全域變數對照表
       const queryParts = [];
       const itemVarMap = new Map();
 
@@ -604,7 +736,6 @@
         itemVarMap.set(item.id, varName);
       });
 
-      // 2. 建立單一批次 Script 請求
       const uniqueParams = [...new Set(queryParts)].join(',');
       const url = `https://qt.gtimg.cn/q=${uniqueParams}`;
 
@@ -617,7 +748,6 @@
       script.src = url;
 
       script.onload = () => {
-        // 3. 請求完成後，依序解析每隻股票資料
         stockList.forEach(item => {
           const varName = itemVarMap.get(item.id);
           const dataStr = window[varName];
@@ -636,13 +766,13 @@
 
     function scheduleNextUpdate(isTrading) {
       if (isTrading) {
-        timerId = setTimeout(updateAllStocks, 1000); // 盤中 1 秒更新
+        timerId = setTimeout(updateAllStocks, 1000); 
       } else {
-        timerId = setTimeout(updateAllStocks, 60000); // 非盤中 1 分鐘檢查一次
+        timerId = setTimeout(updateAllStocks, 60000); 
       }
     }
 
-    /* ================= 解析數據與閃爍觸發 ================= */
+    /* ================= 解析數據與第一檔盤口渲染 ================= */
     function parseAndRenderStock(item, dataStr) {
       const titleEl = document.getElementById(`title-${item.id}`);
       if (!titleEl) return; 
@@ -685,6 +815,10 @@
           
           const timeString = new Date().toLocaleTimeString('zh-HK', { hour12: false });
           document.getElementById(`time-${item.id}`).innerText = `更新: ${timeString}`;
+
+          // 指數不顯示買賣盤
+          const depthEl = document.getElementById(`depth-${item.id}`);
+          if (depthEl) depthEl.style.display = 'none';
 
           triggerPriceFlash(item, price);
           return;
@@ -735,6 +869,40 @@
           }
           document.getElementById(`vol-${item.id}`).innerText = `成交: ${volStr}`;
           document.getElementById(`time-${item.id}`).innerText = `更新: ${updateTime}`;
+
+          /* ===== 處理第一檔行情 (買一 / 賣一) ===== */
+          const bidPrice = parseFloat(parts[9]) || price;
+          const bidVol = parseInt(parts[10], 10) || 0;
+          const askPrice = parseFloat(parts[11]) || price;
+          const askVol = parseInt(parts[12], 10) || 0;
+
+          const totalDepthVol = bidVol + askVol;
+          let buyRatio = 50.0;
+          let sellRatio = 50.0;
+
+          if (totalDepthVol > 0) {
+            buyRatio = (bidVol / totalDepthVol) * 100;
+            sellRatio = (askVol / totalDepthVol) * 100;
+          }
+
+          // 更新展開區塊數字與顏色
+          const bidPriceEl = document.getElementById(`bid-price-${item.id}`);
+          const askPriceEl = document.getElementById(`ask-price-${item.id}`);
+
+          bidPriceEl.innerText = bidPrice.toFixed(3);
+          askPriceEl.innerText = askPrice.toFixed(3);
+
+          bidPriceEl.style.color = color;
+          askPriceEl.style.color = color;
+
+          document.getElementById(`bid-vol-${item.id}`).innerText = formatVolDisplay(bidVol);
+          document.getElementById(`ask-vol-${item.id}`).innerText = formatVolDisplay(askVol);
+
+          document.getElementById(`buy-pct-${item.id}`).innerText = `${buyRatio.toFixed(2)}%`;
+          document.getElementById(`sell-pct-${item.id}`).innerText = `${sellRatio.toFixed(2)}%`;
+
+          document.getElementById(`buy-bar-${item.id}`).style.width = `${buyRatio.toFixed(2)}%`;
+          document.getElementById(`sell-bar-${item.id}`).style.width = `${sellRatio.toFixed(2)}%`;
 
           triggerPriceFlash(item, price);
           return;
