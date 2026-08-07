@@ -838,50 +838,57 @@
       const askPriceEl = document.getElementById(`ask-price-${item.id}`);
       if (!bidPriceEl || !askPriceEl) return;
 
+      const isTrading = updateMarketStatus(); // 獲取當前是否處於盤中交易時段
       const now = Date.now();
       let buyChanged = false;
       let sellChanged = false;
 
-      // 若尚未初始化量能，或倒數時間已到（1秒至20秒隨機觸發）
-      if (!item.lastVolUpdate || (now - item.lastVolUpdate >= (item.nextVolDelay || 1000))) {
-        if (!item.bidVol || !item.askVol) {
-          item.bidVol = getRandomVol();
-          item.askVol = getRandomVol();
-          buyChanged = true;
-          sellChanged = true;
-        } else {
-          // 隨機選擇更新方式：0 = 只改買盤, 1 = 只改賣盤, 2 = 兩者同時改
-          const mode = Math.floor(Math.random() * 3);
-          if (mode === 0) {
+      // 只有在【盤中交易時段】才觸發隨機量能模擬與閃爍動畫
+      if (isTrading) {
+        if (!item.lastVolUpdate || (now - item.lastVolUpdate >= (item.nextVolDelay || 1000))) {
+          if (!item.bidVol || !item.askVol) {
             item.bidVol = getRandomVol();
-            buyChanged = true;
-          } else if (mode === 1) {
             item.askVol = getRandomVol();
+            buyChanged = true;
             sellChanged = true;
           } else {
-            item.bidVol = getRandomVol();
-            item.askVol = getRandomVol();
-            buyChanged = true;
-            sellChanged = true;
+            const mode = Math.floor(Math.random() * 3);
+            if (mode === 0) {
+              item.bidVol = getRandomVol();
+              buyChanged = true;
+            } else if (mode === 1) {
+              item.askVol = getRandomVol();
+              sellChanged = true;
+            } else {
+              item.bidVol = getRandomVol();
+              item.askVol = getRandomVol();
+              buyChanged = true;
+              sellChanged = true;
+            }
           }
+
+          item.lastVolUpdate = now;
+          item.nextVolDelay = Math.floor(Math.random() * 19000) + 1000; // 1000ms ~ 20000ms 隨機變動
+
+          const buyBoxEl = document.getElementById(`buy-box-${item.id}`);
+          const sellBoxEl = document.getElementById(`sell-box-${item.id}`);
+
+          if (buyChanged && buyBoxEl) triggerBoxFlash(buyBoxEl, 'flash-buy');
+          if (sellChanged && sellBoxEl) triggerBoxFlash(sellBoxEl, 'flash-sell');
         }
-
-        item.lastVolUpdate = now;
-        item.nextVolDelay = Math.floor(Math.random() * 19000) + 1000; // 1000ms ~ 20000ms 隨機變動
-
-        // 觸發區域背景閃爍效果
-        const buyBoxEl = document.getElementById(`buy-box-${item.id}`);
-        const sellBoxEl = document.getElementById(`sell-box-${item.id}`);
-
-        if (buyChanged && buyBoxEl) triggerBoxFlash(buyBoxEl, 'flash-buy');
-        if (sellChanged && sellBoxEl) triggerBoxFlash(sellBoxEl, 'flash-sell');
+      } else {
+        // 非交易時段（收市/休市/假日）：若未初始化則給予預設量，但保持靜止不動
+        if (!item.bidVol || !item.askVol) {
+          item.bidVol = 20000;
+          item.askVol = 20000;
+        }
       }
 
       const bidPrice = item.bidPrice || 0;
       const askPrice = item.askPrice || 0;
       const prevClose = item.prevClose || 0;
-      const bidVol = item.bidVol || 2000;
-      const askVol = item.askVol || 2000;
+      const bidVol = item.bidVol || 20000;
+      const askVol = item.askVol || 20000;
 
       const totalDepthVol = bidVol + askVol;
       let buyRatio = 50.0;
@@ -895,7 +902,7 @@
       bidPriceEl.innerText = bidPrice.toFixed(3);
       askPriceEl.innerText = askPrice.toFixed(3);
 
-      /* ===== 關鍵修改：買賣盤價格顏色相較昨收價（prevClose）計算 ===== */
+      /* 買賣盤價格顏色相較昨收價（prevClose）計算 */
       bidPriceEl.style.color = getPriceColor(bidPrice, prevClose);
       askPriceEl.style.color = getPriceColor(askPrice, prevClose);
 
@@ -916,7 +923,7 @@
       if (sellBarEl) sellBarEl.style.width = `${sellRatio.toFixed(2)}%`;
     }
 
-    /* 每 500ms 檢查並刷新全體個股的第一檔買賣盤數量 */
+    /* 每 500ms 檢查一次第一檔買賣盤 */
     setInterval(() => {
       stockList.forEach(item => {
         if (item.bidPrice && item.askPrice) {
@@ -1034,7 +1041,7 @@
 
           item.bidPrice = bidPrice;
           item.askPrice = askPrice;
-          item.prevClose = prevClose; // 儲存前收價供盤口比對
+          item.prevClose = prevClose; // 儲存前收價
 
           // 更新買賣盤區塊
           renderDepthPanel(item);
