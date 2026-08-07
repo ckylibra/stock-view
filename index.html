@@ -83,8 +83,8 @@
 
     /* 縮窄後的輸入框 */
     .top-add-bar input {
-      width: 110px;
-      flex: 0 1 120px;
+      width: 100px;
+      flex: 0 1 110px;
       padding: 8px 10px;
       border-radius: 8px;
       border: 1px solid var(--border-color);
@@ -261,9 +261,9 @@
 </head>
 <body>
 
-  <!-- 最頂層單一行：日夜模式 > 新增 > 輸入欄 > 狀態 -->
+  <!-- 最頂層單一行：日/夜 > 新增 > 輸入欄 > 狀態 -->
   <div class="top-add-bar">
-    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️ 日間</button>
+    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️ 日</button>
     <button onclick="addStock()">新增</button>
     <input type="text" id="newStockInput" placeholder="代號 (如:0700)">
     <span id="marketStatusBadge" class="status-badge">載入中...</span>
@@ -283,7 +283,7 @@
       console.warn("繁簡轉換庫載入失敗");
     }
 
-    /* ================= 主題切換 (日間 / 夜間) ================= */
+    /* ================= 主題切換 (日 / 夜) ================= */
     const THEME_STORAGE_KEY = 'hk_stock_theme_preference';
 
     function initTheme() {
@@ -306,7 +306,7 @@
     function updateThemeBtnText(isLight) {
       const btn = document.getElementById('themeToggleBtn');
       if (btn) {
-        btn.innerHTML = isLight ? '🌙 夜間' : '☀️ 日間';
+        btn.innerHTML = isLight ? '🌙 夜' : '☀️ 日';
       }
     }
 
