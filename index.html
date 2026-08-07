@@ -137,7 +137,7 @@
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
       border-radius: 10px;
-      padding: 10px 12px;
+      padding: 8px 12px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
       display: flex;
       flex-direction: column;
@@ -258,11 +258,13 @@
       color: var(--text-muted);
     }
 
-    /* ===== 第一檔盤口展開區塊樣式 (模仿截圖) ===== */
+    /* ===== 第一檔盤口區塊（改為靠左） ===== */
     .depth-panel {
       display: none;
-      margin-top: 10px;
-      padding-top: 8px;
+      margin: 8px 0 2px 0; /* 靠左對齊 */
+      width: 100%;
+      max-width: 300px; /* 限制寬度 */
+      padding-top: 6px;
       border-top: 1px dashed var(--border-color);
     }
 
@@ -273,39 +275,39 @@
     .depth-title-row {
       display: flex;
       justify-content: space-between;
-      font-size: 13px;
+      font-size: 11px;
       font-weight: bold;
-      color: var(--text-main);
-      margin-bottom: 6px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
     }
 
     .depth-bar-container {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
+      gap: 6px;
+      margin-bottom: 6px;
     }
 
     .buy-pct-text {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: bold;
       color: var(--up-color);
-      min-width: 45px;
+      min-width: 38px;
     }
 
     .sell-pct-text {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: bold;
       color: var(--down-color);
-      min-width: 45px;
+      min-width: 38px;
       text-align: right;
     }
 
     .depth-bar-bg {
       flex: 1;
-      height: 5px;
+      height: 4px;
       background-color: var(--border-color);
-      border-radius: 3px;
+      border-radius: 2px;
       overflow: hidden;
       display: flex;
     }
@@ -334,7 +336,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 8px 12px;
+      padding: 4px 8px;
       border-radius: 6px;
     }
 
@@ -347,13 +349,13 @@
     }
 
     .depth-price {
-      font-size: 17px;
+      font-size: 14px;
       font-weight: bold;
     }
 
     .depth-vol {
-      font-size: 13px;
-      font-weight: 500;
+      font-size: 11px;
+      font-weight: bold;
       color: var(--text-main);
     }
 
@@ -459,7 +461,6 @@
 
     /* ================= 卡片點擊展開/收折控制 ================= */
     function toggleCardExpand(id, event) {
-      // 點擊刪除按鈕或拖拽握把時，不觸發展開
       if (event.target.closest('.remove-btn') || event.target.closest('.drag-handle')) {
         return;
       }
@@ -488,7 +489,7 @@
             <span class="info-item" id="time-${item.id}">更新: --</span>
           </div>
 
-          <!-- 第一檔買賣盤展開區塊 -->
+          <!-- 第一檔買賣盤區塊 -->
           <div class="depth-panel" id="depth-${item.id}">
             <div class="depth-title-row">
               <span>買盤</span>
@@ -693,7 +694,6 @@
       return isTrading;
     }
 
-    /* 格式化股數數量 (如 14000 -> 14K, 1200000 -> 1.2M) */
     function formatVolDisplay(vol) {
       if (isNaN(vol) || vol === 0) return "0";
       if (vol >= 1e6) return (vol / 1e6).toFixed(1) + 'M';
@@ -816,7 +816,6 @@
           const timeString = new Date().toLocaleTimeString('zh-HK', { hour12: false });
           document.getElementById(`time-${item.id}`).innerText = `更新: ${timeString}`;
 
-          // 指數不顯示買賣盤
           const depthEl = document.getElementById(`depth-${item.id}`);
           if (depthEl) depthEl.style.display = 'none';
 
@@ -870,7 +869,7 @@
           document.getElementById(`vol-${item.id}`).innerText = `成交: ${volStr}`;
           document.getElementById(`time-${item.id}`).innerText = `更新: ${updateTime}`;
 
-          /* ===== 處理第一檔行情 (買一 / 賣一) ===== */
+          /* ===== 第一檔買賣盤 ===== */
           const bidPrice = parseFloat(parts[9]) || price;
           const bidVol = parseInt(parts[10], 10) || 0;
           const askPrice = parseFloat(parts[11]) || price;
@@ -885,7 +884,6 @@
             sellRatio = (askVol / totalDepthVol) * 100;
           }
 
-          // 更新展開區塊數字與顏色
           const bidPriceEl = document.getElementById(`bid-price-${item.id}`);
           const askPriceEl = document.getElementById(`ask-price-${item.id}`);
 
