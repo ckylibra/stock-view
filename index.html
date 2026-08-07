@@ -9,6 +9,7 @@
   <style>
     /* 預設暗黑模式變數 */
     :root {
+      --font-scale: 1; /* 動態字體縮放比例 */
       --bg-color: #121212;
       --panel-bg: #1e1e1e;
       --card-bg: #2a2a2a;
@@ -73,7 +74,7 @@
       border: none;
       background-color: var(--accent);
       color: #fff;
-      font-size: 13px;
+      font-size: calc(13px * var(--font-scale));
       font-weight: bold;
       cursor: pointer;
       white-space: nowrap;
@@ -94,7 +95,7 @@
       border: 1px solid var(--border-color);
       background-color: var(--panel-bg);
       color: var(--text-main);
-      font-size: 13px; 
+      font-size: calc(13px * var(--font-scale)); 
     }
 
     .top-add-bar input:focus {
@@ -102,7 +103,7 @@
       border-color: var(--accent);
     }
 
-    /* 日夜切換按鈕專屬樣式 */
+    /* 日夜切換及字體按鈕專屬樣式 */
     .theme-toggle-btn {
       background-color: var(--panel-bg) !important;
       color: var(--text-main) !important;
@@ -112,7 +113,7 @@
     /* 市場狀態標籤 (最右側) */
     .status-badge {
       font-weight: bold;
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       padding: 7px 8px;
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
@@ -208,7 +209,7 @@
       cursor: grab;
       color: var(--text-muted);
       font-weight: bold;
-      font-size: 16px;
+      font-size: calc(16px * var(--font-scale));
       padding: 0 8px 0 0;
       user-select: none;
       touch-action: none;
@@ -223,7 +224,7 @@
 
     /* 股票名稱 */
     .title {
-      font-size: 15px;
+      font-size: calc(15px * var(--font-scale));
       font-weight: bold;
       white-space: nowrap;
       overflow: hidden;
@@ -237,7 +238,7 @@
       border-radius: 50%;
       width: 22px;
       height: 22px;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       font-weight: bold;
       display: flex;
       justify-content: center;
@@ -262,18 +263,18 @@
     }
 
     .price {
-      font-size: 20px;
+      font-size: calc(20px * var(--font-scale));
       font-weight: bold;
     }
 
     .change {
-      font-size: 14px;
+      font-size: calc(14px * var(--font-scale));
       font-weight: bold;
       margin-right: 6px;
     }
 
     .info-item {
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       color: var(--text-muted);
     }
 
@@ -294,7 +295,7 @@
     .depth-title-row {
       display: flex;
       justify-content: space-between;
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       font-weight: bold;
       color: var(--text-muted);
       margin-bottom: 4px;
@@ -308,14 +309,14 @@
     }
 
     .buy-pct-text {
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       font-weight: bold;
       color: var(--up-color);
       min-width: 42px;
     }
 
     .sell-pct-text {
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       font-weight: bold;
       color: var(--down-color);
       min-width: 42px;
@@ -369,12 +370,12 @@
     }
 
     .depth-price {
-      font-size: 18px;
+      font-size: calc(18px * var(--font-scale));
       font-weight: bold;
     }
 
     .depth-vol {
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       font-weight: bold;
       color: var(--text-main);
     }
@@ -383,9 +384,11 @@
 </head>
 <body>
 
-  <!-- 最頂層單一行：日/夜 > 新增 > 輸入欄 > 狀態 -->
+  <!-- 最頂層單一行：日/夜 > 字體控制 > 新增 > 輸入欄 > 狀態 -->
   <div class="top-add-bar">
     <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️ 日</button>
+    <button class="theme-toggle-btn" onclick="changeFontSize(-1)" title="縮小字體">A-</button>
+    <button class="theme-toggle-btn" onclick="changeFontSize(1)" title="放大字體">A+</button>
     <button onclick="addStock()">新增</button>
     <input type="text" id="newStockInput" placeholder="代號 (如:0700)">
     <span id="marketStatusBadge" class="status-badge">載入中...</span>
@@ -402,6 +405,35 @@
       }
     } catch (e) {
       console.warn("繁簡轉換庫載入失敗");
+    }
+
+    /* ================= 文字大小控制與本地記憶 ================= */
+    const FONT_STORAGE_KEY = 'hk_stock_font_scale_preference';
+    let currentFontScale = 1.0;
+
+    function initFontSize() {
+      const savedScale = localStorage.getItem(FONT_STORAGE_KEY);
+      if (savedScale) {
+        const parsed = parseFloat(savedScale);
+        if (!isNaN(parsed)) {
+          currentFontScale = parsed;
+        }
+      }
+      applyFontSize();
+    }
+
+    function changeFontSize(delta) {
+      // 每次以 0.1 (10%) 為步階調整，限制範圍於 0.7 倍至 1.5 倍之間
+      currentFontScale = Math.round((currentFontScale + delta * 0.1) * 10) / 10;
+      if (currentFontScale < 0.7) currentFontScale = 0.7;
+      if (currentFontScale > 1.5) currentFontScale = 1.5;
+
+      localStorage.setItem(FONT_STORAGE_KEY, currentFontScale.toString());
+      applyFontSize();
+    }
+
+    function applyFontSize() {
+      document.documentElement.style.setProperty('--font-scale', currentFontScale);
     }
 
     /* ================= 港股最低上落價位 (Minimum Tick Size) 對照表 ================= */
@@ -727,43 +759,36 @@
       let isAuction = false;
       let statusText = "🔴 已收市";
 
-      // 09:00 - 09:20 (開市競價 - 活躍對盤)
       if (timeInMinutes >= 9 * 60 && timeInMinutes < 9 * 60 + 20) {
         statusText = "🟡 開市競價";
         isTrading = true;
         isAuction = true;
       } 
-      // 09:20 - 09:30 (競價完成 - 暫停等待開市，買賣盤不變動)
       else if (timeInMinutes >= 9 * 60 + 20 && timeInMinutes < 9 * 60 + 30) {
         statusText = "🟡 競價暫停";
-        isTrading = false; // 停止變動
-        isAuction = true;  // 買賣盤價格一樣
+        isTrading = false;
+        isAuction = true; 
       }
-      // 09:30 - 12:00 (早市 - 持續交易)
       else if (timeInMinutes >= 9 * 60 + 30 && timeInMinutes < 12 * 60) {
         statusText = "🟢 盤中交易";
         isTrading = true;
-        isAuction = false; // 買賣盤不同
+        isAuction = false;
       }
-      // 12:00 - 13:00 (午休)
       else if (timeInMinutes >= 12 * 60 && timeInMinutes < 13 * 60) {
         statusText = "🟡 午休";
         isTrading = false;
         isAuction = false;
       }
-      // 13:00 - 16:00 (午市 - 持續交易)
       else if (timeInMinutes >= 13 * 60 && timeInMinutes < 16 * 60) {
         statusText = "🟢 盤中交易";
         isTrading = true;
         isAuction = false;
       }
-      // 16:00 - 16:10 (收市競價)
       else if (timeInMinutes >= 16 * 60 && timeInMinutes < 16 * 60 + 10) {
         statusText = "🟡 收市競價";
         isTrading = true;
         isAuction = true;
       } 
-      // 16:10 後 (已收市)
       else {
         statusText = "🔴 已收市";
         isTrading = false;
@@ -788,7 +813,6 @@
         timerId = null;
       }
 
-      // 取得最新狀態物件，並提取 isTrading 供計時器使用
       const market = updateMarketStatus();
       const isTrading = market.isTrading;
 
@@ -854,7 +878,6 @@
       }
     }
 
-    /* 判斷價格相對於前收價的顏色 */
     function getPriceColor(price, prevClose) {
       if (!prevClose || price === 0) return 'var(--text-main)';
       if (price > prevClose) return 'var(--up-color)';
@@ -868,13 +891,11 @@
       const askPriceEl = document.getElementById(`ask-price-${item.id}`);
       if (!bidPriceEl || !askPriceEl) return;
 
-      const market = updateMarketStatus(); // 獲取最新狀態物件
+      const market = updateMarketStatus();
       const now = Date.now();
       let buyChanged = false;
       let sellChanged = false;
 
-      // 只有在【活躍交易時段 (isTrading === true)】才觸發隨機量能模擬與閃爍動畫
-      // 競價完成後 (如 09:20-09:30) 及 收市後 (16:10後)，isTrading 為 false，將停止變動
       if (market.isTrading) {
         if (!item.lastVolUpdate || (now - item.lastVolUpdate >= (item.nextVolDelay || 1000))) {
           if (!item.bidVol || !item.askVol) {
@@ -899,7 +920,7 @@
           }
 
           item.lastVolUpdate = now;
-          item.nextVolDelay = Math.floor(Math.random() * 19000) + 1000; // 1000ms ~ 20000ms 隨機變動
+          item.nextVolDelay = Math.floor(Math.random() * 19000) + 1000;
 
           const buyBoxEl = document.getElementById(`buy-box-${item.id}`);
           const sellBoxEl = document.getElementById(`sell-box-${item.id}`);
@@ -908,7 +929,6 @@
           if (sellChanged && sellBoxEl) triggerBoxFlash(sellBoxEl, 'flash-sell');
         }
       } else {
-        // 非活躍交易時段（收市/休市/假日/競價暫停）：若未初始化則給予預設量，但保持靜止不動
         if (!item.bidVol || !item.askVol) {
           item.bidVol = 20000;
           item.askVol = 20000;
@@ -933,7 +953,6 @@
       bidPriceEl.innerText = bidPrice.toFixed(3);
       askPriceEl.innerText = askPrice.toFixed(3);
 
-      /* 買賣盤價格顏色相較昨收價（prevClose）計算 */
       bidPriceEl.style.color = getPriceColor(bidPrice, prevClose);
       askPriceEl.style.color = getPriceColor(askPrice, prevClose);
 
@@ -954,7 +973,6 @@
       if (sellBarEl) sellBarEl.style.width = `${sellRatio.toFixed(2)}%`;
     }
 
-    /* 每 500ms 檢查一次第一檔買賣盤 */
     setInterval(() => {
       stockList.forEach(item => {
         if (item.bidPrice && item.askPrice) {
@@ -1060,19 +1078,16 @@
           document.getElementById(`vol-${item.id}`).innerText = `成交: ${volStr}`;
           document.getElementById(`time-${item.id}`).innerText = `更新: ${updateTime}`;
 
-          /* ===== 第一檔買賣盤價格與買賣差價計算 ===== */
           let bidPrice = parseFloat(parts[9]) || 0;
           let askPrice = parseFloat(parts[11]) || 0;
           const tickSize = getTickSize(price);
           
-          const market = updateMarketStatus(); // 取得當前市場狀態
+          const market = updateMarketStatus();
 
           if (market.isAuction) {
-            // 競價時段內：買賣盤股價一樣 (顯示為現價/參考價)
             bidPrice = price;
             askPrice = price;
           } else {
-            // 競價完成後 (持續交易及收市後)：買賣盤改為不同
             if (bidPrice <= 0 || askPrice <= 0 || bidPrice >= askPrice) {
               bidPrice = price;
               askPrice = parseFloat((price + tickSize).toFixed(3));
@@ -1081,9 +1096,8 @@
 
           item.bidPrice = bidPrice;
           item.askPrice = askPrice;
-          item.prevClose = prevClose; // 儲存前收價
+          item.prevClose = prevClose;
 
-          // 更新買賣盤區塊
           renderDepthPanel(item);
 
           triggerPriceFlash(item, price);
@@ -1093,7 +1107,6 @@
       titleEl.innerText = "查無此代號";
     }
 
-    /* 檢查股價變動並觸發全卡片紅綠閃爍動畫 */
     function triggerPriceFlash(item, newPrice) {
       const cardEl = document.getElementById(`panel-${item.id}`);
       if (!cardEl) return;
@@ -1114,6 +1127,7 @@
 
     // 初始化網頁
     initTheme();
+    initFontSize();
     renderGridUI();
     initDragAndDrop();
     updateAllStocks();
