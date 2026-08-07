@@ -1071,7 +1071,7 @@
 
           priceEl.style.color = color;
           changeEl.style.color = color;
-          changeEl.innerText = `${prefix}${change.toFixed(2)} (${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+          changeEl.innerText = `${prefix}${change.toFixed(2)}\u00A0\u00A0\u00A0(${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
 
           document.getElementById(`high-${item.id}`).innerText = `最高: ${high.toFixed(2)}`;
           document.getElementById(`low-${item.id}`).innerText = `最低: ${low.toFixed(2)}`;
@@ -1116,7 +1116,7 @@
 
           priceEl.style.color = color;
           changeEl.style.color = color;
-          changeEl.innerText = `${prefix}${change.toFixed(2)} (${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+          changeEl.innerText = `${prefix}${change.toFixed(2)}\u00A0\u00A0\u00A0(${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
 
           document.getElementById(`high-${item.id}`).innerText = `最高: --`;
           document.getElementById(`low-${item.id}`).innerText = `最低: --`;
@@ -1162,7 +1162,7 @@
 
           priceEl.style.color = color;
           changeEl.style.color = color;
-          changeEl.innerText = `${prefix}${change.toFixed(3)} (${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+          changeEl.innerText = `${prefix}${change.toFixed(3)}\u00A0\u00A0\u00A0(${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
 
           document.getElementById(`high-${item.id}`).innerText = `最高: ${high.toFixed(3)}`;
           document.getElementById(`low-${item.id}`).innerText = `最低: ${low.toFixed(3)}`;
