@@ -258,12 +258,12 @@
       color: var(--text-muted);
     }
 
-    /* ===== 第一檔盤口區塊（靠左、寬度 350px、字體加大） ===== */
+    /* ===== 第一檔盤口區塊（寬度 350px） ===== */
     .depth-panel {
       display: none;
-      margin: 8px 0 2px 0; /* 靠左 */
+      margin: 8px 0 2px 0;
       width: 100%;
-      max-width: 350px; /* 修改為 350px */
+      max-width: 350px;
       padding-top: 6px;
       border-top: 1px dashed var(--border-color);
     }
@@ -275,7 +275,7 @@
     .depth-title-row {
       display: flex;
       justify-content: space-between;
-      font-size: 12px; /* 從 11px 調大 */
+      font-size: 12px;
       font-weight: bold;
       color: var(--text-muted);
       margin-bottom: 4px;
@@ -289,14 +289,14 @@
     }
 
     .buy-pct-text {
-      font-size: 12px; /* 從 11px 調大 */
+      font-size: 12px;
       font-weight: bold;
       color: var(--up-color);
       min-width: 42px;
     }
 
     .sell-pct-text {
-      font-size: 12px; /* 從 11px 調大 */
+      font-size: 12px;
       font-weight: bold;
       color: var(--down-color);
       min-width: 42px;
@@ -305,7 +305,7 @@
 
     .depth-bar-bg {
       flex: 1;
-      height: 5px; /* 稍微微調厚度 */
+      height: 5px;
       background-color: var(--border-color);
       border-radius: 2px;
       overflow: hidden;
@@ -348,13 +348,14 @@
       background-color: var(--sell-bg);
     }
 
+    /* 買賣盤股價字體調大至 18px */
     .depth-price {
-      font-size: 15px; /* 從 14px 調大 */
+      font-size: 18px;
       font-weight: bold;
     }
 
     .depth-vol {
-      font-size: 12px; /* 從 11px 調大 */
+      font-size: 12px;
       font-weight: bold;
       color: var(--text-main);
     }
