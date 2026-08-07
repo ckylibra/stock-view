@@ -151,23 +151,42 @@
       opacity: 0.3;
     }
 
-    /* ===== 價格變動閃爍動畫 ===== */
+    /* ===== 全卡片價格變動閃爍動畫（延長至 1.5 秒） ===== */
     @keyframes flashGreen {
-      0% { background-color: rgba(0, 230, 118, 0.35); }
+      0% { background-color: rgba(0, 230, 118, 0.45); }
       100% { background-color: var(--panel-bg); }
     }
 
     @keyframes flashRed {
-      0% { background-color: rgba(255, 82, 82, 0.35); }
+      0% { background-color: rgba(255, 82, 82, 0.45); }
       100% { background-color: var(--panel-bg); }
     }
 
     .flash-up {
-      animation: flashGreen 0.8s ease-out;
+      animation: flashGreen 1.5s ease-out;
     }
 
     .flash-down {
-      animation: flashRed 0.8s ease-out;
+      animation: flashRed 1.5s ease-out;
+    }
+
+    /* ===== 買賣盤區域變動閃爍動畫（延長至 1.2 秒） ===== */
+    @keyframes flashBuyBg {
+      0% { background-color: rgba(0, 230, 118, 0.7); }
+      100% { background-color: var(--buy-bg); }
+    }
+
+    @keyframes flashSellBg {
+      0% { background-color: rgba(255, 82, 82, 0.7); }
+      100% { background-color: var(--sell-bg); }
+    }
+
+    .flash-buy {
+      animation: flashBuyBg 1.2s ease-out;
+    }
+
+    .flash-sell {
+      animation: flashSellBg 1.2s ease-out;
     }
 
     /* 卡片頂部 */
@@ -338,6 +357,7 @@
       align-items: center;
       padding: 5px 10px;
       border-radius: 6px;
+      transition: background-color 0.2s ease;
     }
 
     .buy-box {
@@ -348,7 +368,6 @@
       background-color: var(--sell-bg);
     }
 
-    /* 買賣盤股價字體調大至 18px */
     .depth-price {
       font-size: 18px;
       font-weight: bold;
@@ -383,6 +402,38 @@
       }
     } catch (e) {
       console.warn("繁簡轉換庫載入失敗");
+    }
+
+    /* ================= 港股最低上落價位 (Minimum Tick Size) 對照表 ================= */
+    function getTickSize(price) {
+      if (price <= 0.25) return 0.001;
+      if (price <= 10.00) return 0.005;
+      if (price <= 20.00) return 0.010;
+      if (price <= 50.00) return 0.020;
+      if (price <= 100.00) return 0.050;
+      if (price <= 200.00) return 0.100;
+      if (price <= 500.00) return 0.200;
+      if (price <= 1000.00) return 0.500;
+      if (price <= 2000.00) return 1.000;
+      if (price <= 5000.00) return 2.000;
+      if (price <= 9995.00) return 5.000;
+      return 10.000;
+    }
+
+    /* 隨機生成 2K (2,000) 至 990K (990,000) 之間的數量 */
+    function getRandomVol() {
+      const minK = 2;
+      const maxK = 990;
+      const randomK = Math.floor(Math.random() * (maxK - minK + 1)) + minK;
+      return randomK * 1000;
+    }
+
+    /* 觸發區塊閃爍動畫工具 */
+    function triggerBoxFlash(el, className) {
+      if (!el) return;
+      el.classList.remove(className);
+      void el.offsetWidth; // 強制重繪 (reflow) 以重新觸發動畫
+      el.classList.add(className);
     }
 
     /* ================= 主題切換 (日 / 夜) ================= */
@@ -505,11 +556,11 @@
               <span class="sell-pct-text" id="sell-pct-${item.id}">50.00%</span>
             </div>
             <div class="depth-box-row">
-              <div class="depth-box buy-box">
+              <div class="depth-box buy-box" id="buy-box-${item.id}">
                 <span class="depth-price" id="bid-price-${item.id}">--</span>
                 <span class="depth-vol" id="bid-vol-${item.id}">--</span>
               </div>
-              <div class="depth-box sell-box">
+              <div class="depth-box sell-box" id="sell-box-${item.id}">
                 <span class="depth-price" id="ask-price-${item.id}">--</span>
                 <span class="depth-vol" id="ask-vol-${item.id}">--</span>
               </div>
@@ -773,7 +824,98 @@
       }
     }
 
-    /* ================= 解析數據與第一檔盤口渲染 ================= */
+    /* ================= 第一檔買賣盤渲染與動態閃爍邏輯 ================= */
+    function renderDepthPanel(item) {
+      const bidPriceEl = document.getElementById(`bid-price-${item.id}`);
+      const askPriceEl = document.getElementById(`ask-price-${item.id}`);
+      if (!bidPriceEl || !askPriceEl) return;
+
+      const now = Date.now();
+      let buyChanged = false;
+      let sellChanged = false;
+
+      // 若尚未初始化量能，或倒數時間已到（1秒至20秒隨機觸發）
+      if (!item.lastVolUpdate || (now - item.lastVolUpdate >= (item.nextVolDelay || 1000))) {
+        if (!item.bidVol || !item.askVol) {
+          item.bidVol = getRandomVol();
+          item.askVol = getRandomVol();
+          buyChanged = true;
+          sellChanged = true;
+        } else {
+          // 隨機選擇更新方式：0 = 只改買盤, 1 = 只改賣盤, 2 = 兩者同時改
+          const mode = Math.floor(Math.random() * 3);
+          if (mode === 0) {
+            item.bidVol = getRandomVol();
+            buyChanged = true;
+          } else if (mode === 1) {
+            item.askVol = getRandomVol();
+            sellChanged = true;
+          } else {
+            item.bidVol = getRandomVol();
+            item.askVol = getRandomVol();
+            buyChanged = true;
+            sellChanged = true;
+          }
+        }
+
+        item.lastVolUpdate = now;
+        item.nextVolDelay = Math.floor(Math.random() * 19000) + 1000; // 1000ms ~ 20000ms 隨機變動
+
+        // 觸發區域背景閃爍效果
+        const buyBoxEl = document.getElementById(`buy-box-${item.id}`);
+        const sellBoxEl = document.getElementById(`sell-box-${item.id}`);
+
+        if (buyChanged && buyBoxEl) triggerBoxFlash(buyBoxEl, 'flash-buy');
+        if (sellChanged && sellBoxEl) triggerBoxFlash(sellBoxEl, 'flash-sell');
+      }
+
+      const bidPrice = item.bidPrice || 0;
+      const askPrice = item.askPrice || 0;
+      const bidVol = item.bidVol || 2000;
+      const askVol = item.askVol || 2000;
+
+      const totalDepthVol = bidVol + askVol;
+      let buyRatio = 50.0;
+      let sellRatio = 50.0;
+
+      if (totalDepthVol > 0) {
+        buyRatio = (bidVol / totalDepthVol) * 100;
+        sellRatio = (askVol / totalDepthVol) * 100;
+      }
+
+      bidPriceEl.innerText = bidPrice.toFixed(3);
+      askPriceEl.innerText = askPrice.toFixed(3);
+
+      bidPriceEl.style.color = 'var(--up-color)';
+      askPriceEl.style.color = 'var(--down-color)';
+
+      const bidVolEl = document.getElementById(`bid-vol-${item.id}`);
+      const askVolEl = document.getElementById(`ask-vol-${item.id}`);
+      const buyPctEl = document.getElementById(`buy-pct-${item.id}`);
+      const sellPctEl = document.getElementById(`sell-pct-${item.id}`);
+      const buyBarEl = document.getElementById(`buy-bar-${item.id}`);
+      const sellBarEl = document.getElementById(`sell-bar-${item.id}`);
+
+      if (bidVolEl) bidVolEl.innerText = formatVolDisplay(bidVol);
+      if (askVolEl) askVolEl.innerText = formatVolDisplay(askVol);
+
+      if (buyPctEl) buyPctEl.innerText = `${buyRatio.toFixed(2)}%`;
+      if (sellPctEl) sellPctEl.innerText = `${sellRatio.toFixed(2)}%`;
+
+      if (buyBarEl) buyBarEl.style.width = `${buyRatio.toFixed(2)}%`;
+      if (sellBarEl) sellBarEl.style.width = `${sellRatio.toFixed(2)}%`;
+    }
+
+    /* 每 500ms 檢查並刷新全體個股的第一檔買賣盤數量 */
+    setInterval(() => {
+      stockList.forEach(item => {
+        if (item.bidPrice && item.askPrice) {
+          renderDepthPanel(item);
+        }
+      });
+    }, 500);
+
+    /* ================= 解析股票數據 ================= */
     function parseAndRenderStock(item, dataStr) {
       const titleEl = document.getElementById(`title-${item.id}`);
       if (!titleEl) return; 
@@ -870,38 +1012,21 @@
           document.getElementById(`vol-${item.id}`).innerText = `成交: ${volStr}`;
           document.getElementById(`time-${item.id}`).innerText = `更新: ${updateTime}`;
 
-          /* ===== 第一檔買賣盤 ===== */
-          const bidPrice = parseFloat(parts[9]) || price;
-          const bidVol = parseInt(parts[10], 10) || 0;
-          const askPrice = parseFloat(parts[11]) || price;
-          const askVol = parseInt(parts[12], 10) || 0;
+          /* ===== 第一檔買賣盤價格與買賣差價計算 ===== */
+          let bidPrice = parseFloat(parts[9]) || 0;
+          let askPrice = parseFloat(parts[11]) || 0;
+          const tickSize = getTickSize(price);
 
-          const totalDepthVol = bidVol + askVol;
-          let buyRatio = 50.0;
-          let sellRatio = 50.0;
-
-          if (totalDepthVol > 0) {
-            buyRatio = (bidVol / totalDepthVol) * 100;
-            sellRatio = (askVol / totalDepthVol) * 100;
+          if (bidPrice <= 0 || askPrice <= 0 || bidPrice >= askPrice) {
+            bidPrice = price;
+            askPrice = parseFloat((price + tickSize).toFixed(3));
           }
 
-          const bidPriceEl = document.getElementById(`bid-price-${item.id}`);
-          const askPriceEl = document.getElementById(`ask-price-${item.id}`);
+          item.bidPrice = bidPrice;
+          item.askPrice = askPrice;
 
-          bidPriceEl.innerText = bidPrice.toFixed(3);
-          askPriceEl.innerText = askPrice.toFixed(3);
-
-          bidPriceEl.style.color = color;
-          askPriceEl.style.color = color;
-
-          document.getElementById(`bid-vol-${item.id}`).innerText = formatVolDisplay(bidVol);
-          document.getElementById(`ask-vol-${item.id}`).innerText = formatVolDisplay(askVol);
-
-          document.getElementById(`buy-pct-${item.id}`).innerText = `${buyRatio.toFixed(2)}%`;
-          document.getElementById(`sell-pct-${item.id}`).innerText = `${sellRatio.toFixed(2)}%`;
-
-          document.getElementById(`buy-bar-${item.id}`).style.width = `${buyRatio.toFixed(2)}%`;
-          document.getElementById(`sell-bar-${item.id}`).style.width = `${sellRatio.toFixed(2)}%`;
+          // 更新買賣盤區塊
+          renderDepthPanel(item);
 
           triggerPriceFlash(item, price);
           return;
@@ -910,7 +1035,7 @@
       titleEl.innerText = "查無此代號";
     }
 
-    /* 檢查股價變動並觸發紅綠閃爍動畫 */
+    /* 檢查股價變動並觸發全卡片紅綠閃爍動畫 */
     function triggerPriceFlash(item, newPrice) {
       const cardEl = document.getElementById(`panel-${item.id}`);
       if (!cardEl) return;
