@@ -110,7 +110,7 @@
       border: 1px solid var(--border-color) !important;
     }
 
-    /* 市場狀態標籤 (靠右靠齊起點) */
+    /* 市場狀態標籤 */
     .status-badge {
       font-weight: bold;
       font-size: calc(12px * var(--font-scale));
@@ -884,6 +884,42 @@
       return 'var(--flat-color)';
     }
 
+    /* ================= 買賣盤數據快取 (收市記憶) ================= */
+    const DEPTH_CACHE_KEY = 'hk_stock_depth_cache';
+
+    /* 儲存最新買賣盤至本地快取 */
+    function saveDepthCache() {
+      const cache = {};
+      stockList.forEach(item => {
+        if (item.bidVol && item.askVol) {
+          cache[item.symbol] = {
+            bidVol: item.bidVol,
+            askVol: item.askVol,
+            bidPrice: item.bidPrice,
+            askPrice: item.askPrice
+          };
+        }
+      });
+      localStorage.setItem(DEPTH_CACHE_KEY, JSON.stringify(cache));
+    }
+
+    /* 讀取上次收市時留下的買賣盤快取 */
+    function applyDepthCache(item) {
+      if (item.bidVol && item.askVol) return; // 若記憶體已有資料則跳過
+      const saved = localStorage.getItem(DEPTH_CACHE_KEY);
+      if (saved) {
+        try {
+          const cache = JSON.parse(saved);
+          if (cache[item.symbol]) {
+            item.bidVol = cache[item.symbol].bidVol;
+            item.askVol = cache[item.symbol].askVol;
+            if (cache[item.symbol].bidPrice) item.bidPrice = cache[item.symbol].bidPrice;
+            if (cache[item.symbol].askPrice) item.askPrice = cache[item.symbol].askPrice;
+          }
+        } catch(e) {}
+      }
+    }
+
     /* ================= 第一檔買賣盤渲染與動態閃爍邏輯 ================= */
     function renderDepthPanel(item) {
       const bidPriceEl = document.getElementById(`bid-price-${item.id}`);
@@ -895,6 +931,7 @@
       let buyChanged = false;
       let sellChanged = false;
 
+      // 1. 交易時段 (每日 09:00 - 16:10)：動態更新並自動記憶
       if (market.isTrading) {
         if (!item.lastVolUpdate || (now - item.lastVolUpdate >= (item.nextVolDelay || 1000))) {
           if (!item.bidVol || !item.askVol) {
@@ -921,16 +958,26 @@
           item.lastVolUpdate = now;
           item.nextVolDelay = Math.floor(Math.random() * 19000) + 1000;
 
+          // 每次盤中變動即時更新快取 (確保收市最後一刻被保存)
+          saveDepthCache();
+
           const buyBoxEl = document.getElementById(`buy-box-${item.id}`);
           const sellBoxEl = document.getElementById(`sell-box-${item.id}`);
 
           if (buyChanged && buyBoxEl) triggerBoxFlash(buyBoxEl, 'flash-buy');
           if (sellChanged && sellBoxEl) triggerBoxFlash(sellBoxEl, 'flash-sell');
         }
-      } else {
+      } 
+      // 2. 非交易時段 (收市/午休/假日)：鎖定上次記憶，不進行隨機跳動
+      else {
+        // 讀取上次收市儲存的買賣盤
+        applyDepthCache(item);
+
+        // 若完全無歷史紀錄（如全新用戶在收市後首次使用），才隨機生成一次並寫入記憶
         if (!item.bidVol || !item.askVol) {
-          item.bidVol = 20000;
-          item.askVol = 20000;
+          item.bidVol = getRandomVol();
+          item.askVol = getRandomVol();
+          saveDepthCache();
         }
       }
 
