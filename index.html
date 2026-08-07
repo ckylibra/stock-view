@@ -197,6 +197,29 @@
       console.warn("繁簡轉換庫載入失敗");
     }
 
+    /* ================= 防止手機螢幕休眠 (Wake Lock API) ================= */
+    let wakeLock = null;
+
+    async function requestWakeLock() {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+        } catch (err) {
+          console.warn(`螢幕常亮啟用失敗: ${err.name}, ${err.message}`);
+        }
+      }
+    }
+
+    // 頁面載入時請求螢幕常亮
+    requestWakeLock();
+
+    // 當切換分頁或應用程式回來時，自動重新啟用螢幕常亮
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible') {
+        await requestWakeLock();
+      }
+    });
+
     /* ================= 本地記憶功能 (localStorage) ================= */
     const STORAGE_KEY = 'hk_stock_watchlist_user_data';
     let nextId = 0;
@@ -355,7 +378,7 @@
       });
 
       stockList = newStockList;
-      saveStockList(); // <-- 同步排序後儲存到本地記憶
+      saveStockList();
     }
 
     /* ================= 股票資料讀取與增刪邏輯 ================= */
@@ -365,24 +388,21 @@
       if (val) {
         const newItem = { id: nextId++, symbol: val };
         stockList.push(newItem);
-        saveStockList(); // <-- 新增後儲存到本地記憶
+        saveStockList();
 
         inputEl.value = "";
 
-        // 局部插入 DOM，避免整體重繪導致閃爍
         const container = document.getElementById("gridContainer");
         container.insertAdjacentHTML('beforeend', createCardHtml(newItem));
 
-        // 僅單獨請求新股票的數據
         fetchAndRenderSlot(newItem);
       }
     }
 
     function removeStock(id) {
       stockList = stockList.filter(item => item.id !== id);
-      saveStockList(); // <-- 刪除後儲存到本地記憶
+      saveStockList();
       
-      // 直接移除該 DOM 節點，無須整體刷新
       const card = document.getElementById(`panel-${id}`);
       if (card) card.remove();
 
