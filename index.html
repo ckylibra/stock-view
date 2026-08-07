@@ -7,15 +7,31 @@
   <!-- 引入繁簡轉換工具 OpenCC-JS -->
   <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
   <style>
+    /* 預設暗黑模式變數 */
     :root {
       --bg-color: #121212;
       --panel-bg: #1e1e1e;
       --card-bg: #2a2a2a;
       --text-main: #ffffff;
       --text-muted: #aaaaaa;
+      --border-color: #333333;
       --up-color: #00E676;   
       --down-color: #FF5252; 
       --flat-color: #AAAAAA;
+      --accent: #1f538d;
+    }
+
+    /* 白天（亮色）模式變數 */
+    body.light-mode {
+      --bg-color: #f0f2f5;
+      --panel-bg: #ffffff;
+      --card-bg: #ffffff;
+      --text-main: #1c1e21;
+      --text-muted: #65676b;
+      --border-color: #e4e6eb;
+      --up-color: #00875a;   /* 深綠漲 */
+      --down-color: #de350b; /* 鮮紅跌 */
+      --flat-color: #65676b;
       --accent: #1f538d;
     }
 
@@ -34,14 +50,15 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      transition: background-color 0.2s ease, color 0.2s ease;
     }
 
-    /* 頂部統一新增區塊 */
+    /* 頂部統一新增及模式切換區塊 */
     .top-add-bar {
       width: 100%;
       max-width: 960px;
       display: flex;
-      gap: 10px;
+      gap: 8px;
       margin-bottom: 10px;
     }
 
@@ -49,9 +66,9 @@
       flex: 1;
       padding: 10px 12px;
       border-radius: 8px;
-      border: 1px solid #444;
+      border: 1px solid var(--border-color);
       background-color: var(--panel-bg);
-      color: #fff;
+      color: var(--text-main);
       font-size: 15px; 
     }
 
@@ -61,7 +78,7 @@
     }
 
     .top-add-bar button {
-      padding: 10px 18px;
+      padding: 10px 16px;
       border-radius: 8px;
       border: none;
       background-color: var(--accent);
@@ -70,10 +87,18 @@
       font-weight: bold;
       cursor: pointer;
       white-space: nowrap;
+      transition: background-color 0.2s ease;
     }
 
     .top-add-bar button:hover {
-      background-color: #14375e;
+      opacity: 0.9;
+    }
+
+    /* 模式切換按鈕專屬樣式 */
+    .theme-toggle-btn {
+      background-color: var(--panel-bg) !important;
+      color: var(--text-main) !important;
+      border: 1px solid var(--border-color) !important;
     }
 
     /* 單行垂直佈局區域 */
@@ -85,18 +110,19 @@
       gap: 8px;
     }
 
-    /* 個別報價卡片 (調緊高度) */
+    /* 個別報價卡片 (緊湊高度) */
     .stock-panel {
       background-color: var(--panel-bg);
+      border: 1px solid var(--border-color);
       border-radius: 10px;
       padding: 8px 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
       display: flex;
       flex-direction: column;
       justify-content: center;
       cursor: grab;
       user-select: none;
-      transition: transform 0.15s ease, opacity 0.15s ease;
+      transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.2s ease;
     }
 
     .stock-panel:active {
@@ -116,7 +142,7 @@
       margin-bottom: 4px;
     }
 
-    /* 縮小股票名稱 */
+    /* 股票名稱 */
     .title {
       font-size: 15px;
       font-weight: bold;
@@ -158,7 +184,7 @@
       display: none; 
     }
 
-    /* 縮小股價文字 */
+    /* 股價文字 */
     .price {
       font-size: 20px;
       font-weight: bold;
@@ -179,17 +205,18 @@
 </head>
 <body>
 
-  <!-- 統一在最頂，可以輸入及新增 -->
+  <!-- 頂部：輸入框 + 新增按鈕 + 白天/夜間切換按鈕 -->
   <div class="top-add-bar">
     <input type="text" id="newStockInput" placeholder="輸入代號 (如: HSI 或 0700)">
     <button onclick="addStock()">新增</button>
+    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️ 日間</button>
   </div>
 
   <!-- 卡片列表區域 -->
   <div class="grid-container" id="gridContainer"></div>
 
   <script>
-    // 初始化簡轉繁轉換器 (從簡體 cn 轉到香港繁體 hk)
+    // 初始化簡轉繁轉換器
     let s2hk = (text) => text; 
     try {
       if (typeof OpenCC !== 'undefined') {
@@ -199,7 +226,34 @@
       console.warn("繁簡轉換庫載入失敗");
     }
 
-    /* ================= 防止手機螢幕休眠 (Wake Lock API) ================= */
+    /* ================= 主題切換 (日間 / 夜間) ================= */
+    const THEME_STORAGE_KEY = 'hk_stock_theme_preference';
+
+    function initTheme() {
+      const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+      if (savedTheme === 'light') {
+        document.body.classList.add('light-mode');
+        updateThemeBtnText(true);
+      } else {
+        document.body.classList.remove('light-mode');
+        updateThemeBtnText(false);
+      }
+    }
+
+    function toggleTheme() {
+      const isLight = document.body.classList.toggle('light-mode');
+      localStorage.setItem(THEME_STORAGE_KEY, isLight ? 'light' : 'dark');
+      updateThemeBtnText(isLight);
+    }
+
+    function updateThemeBtnText(isLight) {
+      const btn = document.getElementById('themeToggleBtn');
+      if (btn) {
+        btn.innerHTML = isLight ? '🌙 夜間' : '☀️ 日間';
+      }
+    }
+
+    /* ================= 防止螢幕休眠 (Wake Lock API) ================= */
     let wakeLock = null;
 
     async function requestWakeLock() {
@@ -563,6 +617,8 @@
       }
     }
 
+    // 初始化網頁
+    initTheme();
     renderGridUI();
     initDragAndDrop();
     updateAllStocks();
