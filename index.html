@@ -707,7 +707,7 @@
       if (card) card.remove();
     }
 
-    /* ================= 港股交易狀態判定 ================= */
+    /* ================= 港股交易狀態判定 (細化競價與持續交易) ================= */
     function updateMarketStatus() {
       const hkDateString = new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' });
       const now = new Date(hkDateString);
@@ -716,34 +716,62 @@
 
       if (day === 0 || day === 6) {
         if (statusBadge) statusBadge.innerText = "⚪ 非交易日";
-        return false;
+        return { isTrading: false, isAuction: false };
       }
 
       const hours = now.getHours();
       const minutes = now.getMinutes();
       const timeInMinutes = hours * 60 + minutes;
 
-      const mStart = 9 * 60;       
-      const mEnd = 12 * 60;        
-      const aStart = 13 * 60;      
-      const aEnd = 16 * 60 + 10;   
-
       let isTrading = false;
+      let isAuction = false;
       let statusText = "🔴 已收市";
 
-      if ((timeInMinutes >= mStart && timeInMinutes < mEnd) || (timeInMinutes >= aStart && timeInMinutes <= aEnd)) {
+      // 09:00 - 09:20 (開市競價 - 活躍對盤)
+      if (timeInMinutes >= 9 * 60 && timeInMinutes < 9 * 60 + 20) {
+        statusText = "🟡 開市競價";
+        isTrading = true;
+        isAuction = true;
+      } 
+      // 09:20 - 09:30 (競價完成 - 暫停等待開市，買賣盤不變動)
+      else if (timeInMinutes >= 9 * 60 + 20 && timeInMinutes < 9 * 60 + 30) {
+        statusText = "🟡 競價暫停";
+        isTrading = false; // 停止變動
+        isAuction = true;  // 買賣盤價格一樣
+      }
+      // 09:30 - 12:00 (早市 - 持續交易)
+      else if (timeInMinutes >= 9 * 60 + 30 && timeInMinutes < 12 * 60) {
         statusText = "🟢 盤中交易";
         isTrading = true;
-      } else if (timeInMinutes >= mEnd && timeInMinutes < aStart) {
+        isAuction = false; // 買賣盤不同
+      }
+      // 12:00 - 13:00 (午休)
+      else if (timeInMinutes >= 12 * 60 && timeInMinutes < 13 * 60) {
         statusText = "🟡 午休";
         isTrading = false;
-      } else {
+        isAuction = false;
+      }
+      // 13:00 - 16:00 (午市 - 持續交易)
+      else if (timeInMinutes >= 13 * 60 && timeInMinutes < 16 * 60) {
+        statusText = "🟢 盤中交易";
+        isTrading = true;
+        isAuction = false;
+      }
+      // 16:00 - 16:10 (收市競價)
+      else if (timeInMinutes >= 16 * 60 && timeInMinutes < 16 * 60 + 10) {
+        statusText = "🟡 收市競價";
+        isTrading = true;
+        isAuction = true;
+      } 
+      // 16:10 後 (已收市)
+      else {
         statusText = "🔴 已收市";
         isTrading = false;
+        isAuction = false;
       }
 
       if (statusBadge) statusBadge.innerText = statusText;
-      return isTrading;
+      return { isTrading, isAuction };
     }
 
     function formatVolDisplay(vol) {
@@ -760,7 +788,9 @@
         timerId = null;
       }
 
-      const isTrading = updateMarketStatus();
+      // 取得最新狀態物件，並提取 isTrading 供計時器使用
+      const market = updateMarketStatus();
+      const isTrading = market.isTrading;
 
       if (stockList.length === 0) {
         scheduleNextUpdate(isTrading);
@@ -838,13 +868,14 @@
       const askPriceEl = document.getElementById(`ask-price-${item.id}`);
       if (!bidPriceEl || !askPriceEl) return;
 
-      const isTrading = updateMarketStatus(); // 獲取當前是否處於盤中交易時段
+      const market = updateMarketStatus(); // 獲取最新狀態物件
       const now = Date.now();
       let buyChanged = false;
       let sellChanged = false;
 
-      // 只有在【盤中交易時段】才觸發隨機量能模擬與閃爍動畫
-      if (isTrading) {
+      // 只有在【活躍交易時段 (isTrading === true)】才觸發隨機量能模擬與閃爍動畫
+      // 競價完成後 (如 09:20-09:30) 及 收市後 (16:10後)，isTrading 為 false，將停止變動
+      if (market.isTrading) {
         if (!item.lastVolUpdate || (now - item.lastVolUpdate >= (item.nextVolDelay || 1000))) {
           if (!item.bidVol || !item.askVol) {
             item.bidVol = getRandomVol();
@@ -877,7 +908,7 @@
           if (sellChanged && sellBoxEl) triggerBoxFlash(sellBoxEl, 'flash-sell');
         }
       } else {
-        // 非交易時段（收市/休市/假日）：若未初始化則給予預設量，但保持靜止不動
+        // 非活躍交易時段（收市/休市/假日/競價暫停）：若未初始化則給予預設量，但保持靜止不動
         if (!item.bidVol || !item.askVol) {
           item.bidVol = 20000;
           item.askVol = 20000;
@@ -1033,10 +1064,19 @@
           let bidPrice = parseFloat(parts[9]) || 0;
           let askPrice = parseFloat(parts[11]) || 0;
           const tickSize = getTickSize(price);
+          
+          const market = updateMarketStatus(); // 取得當前市場狀態
 
-          if (bidPrice <= 0 || askPrice <= 0 || bidPrice >= askPrice) {
+          if (market.isAuction) {
+            // 競價時段內：買賣盤股價一樣 (顯示為現價/參考價)
             bidPrice = price;
-            askPrice = parseFloat((price + tickSize).toFixed(3));
+            askPrice = price;
+          } else {
+            // 競價完成後 (持續交易及收市後)：買賣盤改為不同
+            if (bidPrice <= 0 || askPrice <= 0 || bidPrice >= askPrice) {
+              bidPrice = price;
+              askPrice = parseFloat((price + tickSize).toFixed(3));
+            }
           }
 
           item.bidPrice = bidPrice;
