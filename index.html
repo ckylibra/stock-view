@@ -88,8 +88,8 @@
 
     /* 縮窄後的輸入框 */
     .top-add-bar input {
-      width: 100px;
-      flex: 0 1 110px;
+      width: 110px;
+      flex: 0 1 120px;
       padding: 8px 10px;
       border-radius: 8px;
       border: 1px solid var(--border-color);
@@ -388,7 +388,7 @@
   <div class="top-add-bar">
     <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️</button>
     <button onclick="addStock()">新增</button>
-    <input type="text" id="newStockInput" placeholder="代號 (如:0700)">
+    <input type="text" id="newStockInput" placeholder="代號(如:WTI, BRENT, 0700)">
     <span id="marketStatusBadge" class="status-badge">載入中...</span>
     <button class="theme-toggle-btn" onclick="changeFontSize(-1)" title="縮小字體">A-</button>
     <button class="theme-toggle-btn" onclick="changeFontSize(1)" title="放大字體">A+</button>
@@ -524,6 +524,8 @@
       }
       return [
         { id: nextId++, symbol: "HSI" },
+        { id: nextId++, symbol: "WTI" },
+        { id: nextId++, symbol: "BRENT" },
         { id: nextId++, symbol: "00753" },
         { id: nextId++, symbol: "01800" },
         { id: nextId++, symbol: "02333" }
@@ -715,7 +717,7 @@
     /* ================= 股票資料讀取與增刪邏輯 ================= */
     function addStock() {
       const inputEl = document.getElementById('newStockInput');
-      const val = inputEl.value.trim();
+      let val = inputEl.value.trim().toUpperCase();
       if (val) {
         const newItem = { id: nextId++, symbol: val };
         stockList.push(newItem);
@@ -738,7 +740,7 @@
       if (card) card.remove();
     }
 
-    /* ================= 港股交易狀態判定 (精細模擬港股 CAS 與靜止機制) ================= */
+    /* ================= 港股交易狀態判定 ================= */
     function updateMarketStatus() {
       const hkDateString = new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' });
       const now = new Date(hkDateString);
@@ -758,49 +760,41 @@
       let isAuction = false;
       let statusText = "🔴 已收市";
 
-      // 09:00 - 09:20 (開市競價 - 活躍跳動、買賣價重合)
       if (timeInMinutes >= 9 * 60 && timeInMinutes < 9 * 60 + 20) {
         statusText = "🟡 開市競價";
         isTrading = true;
         isAuction = true;
       } 
-      // 09:20 - 09:30 (競價完成 - 拆分價差，並完全凍結盤口至 09:30 開盤)
       else if (timeInMinutes >= 9 * 60 + 20 && timeInMinutes < 9 * 60 + 30) {
         statusText = "🟡 競價暫停";
-        isTrading = false; // 完全凍結
-        isAuction = false; // 價差拆分
+        isTrading = false; 
+        isAuction = false; 
       }
-      // 09:30 - 12:00 (早市持續交易)
       else if (timeInMinutes >= 9 * 60 + 30 && timeInMinutes < 12 * 60) {
         statusText = "🟢 盤中交易";
         isTrading = true;
         isAuction = false;
       }
-      // 12:00 - 13:00 (午休 - 凍結最後盤口)
       else if (timeInMinutes >= 12 * 60 && timeInMinutes < 13 * 60) {
         statusText = "🟡 午休";
         isTrading = false;
         isAuction = false;
       }
-      // 13:00 - 16:00 (午市持續交易)
       else if (timeInMinutes >= 13 * 60 && timeInMinutes < 16 * 60) {
         statusText = "🟢 盤中交易";
         isTrading = true;
         isAuction = false;
       }
-      // 16:00 - 16:01 (計算參考價 - 凍結 16:00 最後買賣盤 1 分鐘)
       else if (timeInMinutes === 16 * 60) {
         statusText = "🟡 計算參考價";
-        isTrading = false; // 凍結 16:00 買賣盤數量不變
-        isAuction = false; // 保持 16:00 前的買賣價差
+        isTrading = false; 
+        isAuction = false; 
       }
-      // 16:01 - 16:10 (正式收市競價 - 重啟競價對盤，買賣價重合)
       else if (timeInMinutes >= 16 * 60 + 1 && timeInMinutes < 16 * 60 + 10) {
         statusText = "🟡 收市競價";
         isTrading = true;
         isAuction = true;
       } 
-      // 16:10 後 (已收市 - 完全鎖定靜止)
       else {
         statusText = "🔴 已收市";
         isTrading = false;
@@ -837,15 +831,20 @@
       const itemVarMap = new Map();
 
       stockList.forEach(item => {
-        const symbol = item.symbol.trim();
-        const isIndex = symbol.toUpperCase() === 'HSI' || symbol.toUpperCase() === 'HKHSI';
+        const symbol = item.symbol.trim().toUpperCase();
         let param, varName;
 
-        if (isIndex) {
+        if (symbol === 'HSI' || symbol === 'HKHSI') {
           param = 's_hkHSI';
           varName = 'v_s_hkHSI';
+        } else if (symbol === 'WTI' || symbol === 'CL' || symbol === 'HF_CL') {
+          param = 'hf_CL';
+          varName = 'v_hf_CL';
+        } else if (symbol === 'BRENT' || symbol === 'OIL' || symbol === 'HF_OIL') {
+          param = 'hf_OIL';
+          varName = 'v_hf_OIL';
         } else {
-          const cleanCode = symbol.toUpperCase().replace('.HK', '').trim().padStart(5, '0');
+          const cleanCode = symbol.replace('.HK', '').trim().padStart(5, '0');
           param = `r_hk${cleanCode}`;
           varName = `v_r_hk${cleanCode}`;
         }
@@ -900,7 +899,6 @@
     /* ================= 買賣盤數據快取 (收市/休市記憶) ================= */
     const DEPTH_CACHE_KEY = 'hk_stock_depth_cache';
 
-    /* 儲存最新買賣盤至本地快取 */
     function saveDepthCache() {
       const cache = {};
       stockList.forEach(item => {
@@ -916,9 +914,8 @@
       localStorage.setItem(DEPTH_CACHE_KEY, JSON.stringify(cache));
     }
 
-    /* 讀取上次留下的買賣盤快取 */
     function applyDepthCache(item) {
-      if (item.bidVol && item.askVol) return; // 若記憶體已有資料則跳過
+      if (item.bidVol && item.askVol) return; 
       const saved = localStorage.getItem(DEPTH_CACHE_KEY);
       if (saved) {
         try {
@@ -944,7 +941,6 @@
       let buyChanged = false;
       let sellChanged = false;
 
-      // 1. 活躍交易/競價時段：動態跳動與實時記憶
       if (market.isTrading) {
         if (!item.lastVolUpdate || (now - item.lastVolUpdate >= (item.nextVolDelay || 1000))) {
           if (!item.bidVol || !item.askVol) {
@@ -971,7 +967,6 @@
           item.lastVolUpdate = now;
           item.nextVolDelay = Math.floor(Math.random() * 19000) + 1000;
 
-          // 盤中實時寫入快取，鎖定最後一刻買賣盤
           saveDepthCache();
 
           const buyBoxEl = document.getElementById(`buy-box-${item.id}`);
@@ -981,11 +976,9 @@
           if (sellChanged && sellBoxEl) triggerBoxFlash(sellBoxEl, 'flash-sell');
         }
       } 
-      // 2. 非交易時段 (如 09:20-09:30、午休、16:00-16:01 計算參考價、16:10後)：鎖定上次記憶，不進行隨機跳動
       else {
         applyDepthCache(item);
 
-        // 新用戶無快取時，給予一組靜止不變的初始值並儲存
         if (!item.bidVol || !item.askVol) {
           item.bidVol = getRandomVol();
           item.askVol = getRandomVol();
@@ -1039,24 +1032,24 @@
       });
     }, 500);
 
-    /* ================= 解析股票數據 ================= */
+    /* ================= 解析股票數據 (支援大宗商品原油期貨) ================= */
     function parseAndRenderStock(item, dataStr) {
       const titleEl = document.getElementById(`title-${item.id}`);
       if (!titleEl) return; 
 
       if (dataStr && dataStr.includes('~')) {
         const parts = dataStr.split('~');
-        const stockName = s2hk(parts[1]); 
-        const symbol = item.symbol.trim();
-        const isIndex = symbol.toUpperCase() === 'HSI' || symbol.toUpperCase() === 'HKHSI';
+        const symbolUpper = item.symbol.trim().toUpperCase();
 
+        // 1. 指數 (HSI) 解析
+        const isIndex = symbolUpper === 'HSI' || symbolUpper === 'HKHSI';
         if (isIndex && parts.length > 5) {
           const price = parseFloat(parts[3]);
           const change = parseFloat(parts[4]);
           const changePct = parseFloat(parts[5]);
           const turnover = parseFloat(parts[6]) || 0.0;
 
-          titleEl.innerText = `${stockName} (${parts[2]})`;
+          titleEl.innerText = `${s2hk(parts[1])} (${parts[2]})`;
           const priceEl = document.getElementById(`price-${item.id}`);
           const changeEl = document.getElementById(`change-${item.id}`);
           
@@ -1064,13 +1057,8 @@
 
           let color = 'var(--flat-color)';
           let prefix = '';
-          if (change > 0) {
-            color = 'var(--up-color)';
-            prefix = '▲ +';
-          } else if (change < 0) {
-            color = 'var(--down-color)';
-            prefix = '▼ ';
-          }
+          if (change > 0) { color = 'var(--up-color)'; prefix = '▲ +'; }
+          else if (change < 0) { color = 'var(--down-color)'; prefix = '▼ '; }
 
           priceEl.style.color = color;
           changeEl.style.color = color;
@@ -1088,7 +1076,53 @@
 
           triggerPriceFlash(item, price);
           return;
-        } else if (!isIndex && parts.length > 34 && parts[1] !== '') {
+        }
+
+        // 2. 國際原油期貨 (WTI / Brent) 解析
+        const isCommodity = symbolUpper === 'WTI' || symbolUpper === 'BRENT' || symbolUpper === 'CL' || symbolUpper === 'OIL' || symbolUpper.startsWith('HF_');
+        if (isCommodity && parts.length > 7) {
+          const price = parseFloat(parts[1]) || parseFloat(parts[3]) || 0;
+          const change = parseFloat(parts[2]) || 0;
+          const changePct = parseFloat(parts[3]) || 0;
+          const high = parseFloat(parts[4]) || 0;
+          const low = parseFloat(parts[5]) || 0;
+          const prevClose = parseFloat(parts[7]) || price;
+
+          let fullName = parts[13] || parts[8] || (symbolUpper.includes('CL') || symbolUpper.includes('WTI') ? 'WTI原油期貨' : '布倫特原油期貨');
+          fullName = s2hk(fullName);
+
+          titleEl.innerText = `${fullName} (${parts[0] || symbolUpper})`;
+          const priceEl = document.getElementById(`price-${item.id}`);
+          const changeEl = document.getElementById(`change-${item.id}`);
+          
+          priceEl.innerText = price.toFixed(2);
+
+          let color = 'var(--flat-color)';
+          let prefix = '';
+          if (change > 0) { color = 'var(--up-color)'; prefix = '▲ +'; }
+          else if (change < 0) { color = 'var(--down-color)'; prefix = '▼ '; }
+
+          priceEl.style.color = color;
+          changeEl.style.color = color;
+          changeEl.innerText = `${prefix}${change.toFixed(2)} (${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+
+          document.getElementById(`high-${item.id}`).innerText = `最高: ${high > 0 ? high.toFixed(2) : '--'}`;
+          document.getElementById(`low-${item.id}`).innerText = `最低: ${low > 0 ? low.toFixed(2) : '--'}`;
+          document.getElementById(`vol-${item.id}`).innerText = `單位: USD/桶`;
+          
+          const timeString = parts[6] || new Date().toLocaleTimeString('zh-HK', { hour12: false });
+          document.getElementById(`time-${item.id}`).innerText = `更新: ${timeString}`;
+
+          // 原油期貨隱藏港股盤口
+          const depthEl = document.getElementById(`depth-${item.id}`);
+          if (depthEl) depthEl.style.display = 'none';
+
+          triggerPriceFlash(item, price);
+          return;
+        }
+
+        // 3. 港股個股解析
+        if (!isIndex && !isCommodity && parts.length > 34 && parts[1] !== '') {
           const price = parseFloat(parts[3]);
           const prevClose = parseFloat(parts[4]);
           const change = parts[31] ? parseFloat(parts[31]) : (price - prevClose);
@@ -1110,13 +1144,8 @@
 
           let color = 'var(--flat-color)';
           let prefix = '';
-          if (change > 0) {
-            color = 'var(--up-color)';
-            prefix = '▲ +';
-          } else if (change < 0) {
-            color = 'var(--down-color)';
-            prefix = '▼ ';
-          }
+          if (change > 0) { color = 'var(--up-color)'; prefix = '▲ +'; }
+          else if (change < 0) { color = 'var(--down-color)'; prefix = '▼ '; }
 
           priceEl.style.color = color;
           changeEl.style.color = color;
@@ -1126,13 +1155,10 @@
           document.getElementById(`low-${item.id}`).innerText = `最低: ${low.toFixed(3)}`;
 
           let volStr = '';
-          if (volume >= 1e8) {
-            volStr = `${(volume / 1e8).toFixed(2)} 億`;
-          } else if (volume >= 1e4) {
-            volStr = `${(volume / 1e4).toFixed(2)} 萬`;
-          } else {
-            volStr = `${Math.floor(volume)}`;
-          }
+          if (volume >= 1e8) { volStr = `${(volume / 1e8).toFixed(2)} 億`; }
+          else if (volume >= 1e4) { volStr = `${(volume / 1e4).toFixed(2)} 萬`; }
+          else { volStr = `${Math.floor(volume)}`; }
+
           document.getElementById(`vol-${item.id}`).innerText = `成交: ${volStr}`;
           document.getElementById(`time-${item.id}`).innerText = `更新: ${updateTime}`;
 
@@ -1143,11 +1169,9 @@
           const market = updateMarketStatus();
 
           if (market.isAuction) {
-            // 競價時段內 (09:00-09:20, 16:01-16:10)：買賣價格保持一致 (對盤價)
             bidPrice = price;
             askPrice = price;
           } else {
-            // 持續交易時段與暫停/參考價時段：買賣價拆分 (Ask > Bid 至少 1 個 Tick)
             if (bidPrice <= 0 || askPrice <= 0 || bidPrice >= askPrice) {
               bidPrice = price;
               askPrice = parseFloat((price + tickSize).toFixed(3));
