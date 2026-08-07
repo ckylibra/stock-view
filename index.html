@@ -103,10 +103,9 @@
       cursor: grabbing;
     }
 
-    /* 拖動中的卡片樣式 */
+    /* 拖動中的卡片樣式（已移除藍色虛線） */
     .stock-panel.dragging {
-      opacity: 0.4;
-      border: 2px dashed var(--accent);
+      opacity: 0.3;
     }
 
     /* 卡片頂部 (標題左、移除按鈕右) */
@@ -282,7 +281,6 @@
       let touchedCard = null;
 
       container.addEventListener("touchstart", (e) => {
-        // 避開按鈕與內部橫向滾動區，避免影響橫滑與點擊操作
         if (e.target.closest(".remove-btn") || e.target.closest(".data-scroll-row")) return;
 
         const card = e.target.closest(".stock-panel");
@@ -311,7 +309,6 @@
       });
     }
 
-    // 計算當前拖動位置應該插在那個元素之前
     function getDragAfterElement(container, y) {
       const draggableElements = [...container.querySelectorAll('.stock-panel:not(.dragging)')];
 
@@ -326,7 +323,6 @@
       }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
 
-    // 同步 DOM 順序至 stockList 陣列
     function syncStockListOrder() {
       const container = document.getElementById("gridContainer");
       const cards = container.querySelectorAll(".stock-panel");
@@ -519,7 +515,6 @@
       }
     }
 
-    // 初始化 UI、拖拽事件與數據
     renderGridUI();
     initDragAndDrop();
     updateAllStocks();
