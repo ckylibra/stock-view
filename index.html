@@ -74,17 +74,6 @@
       transition: background-color 0.2s ease, color 0.2s ease, padding-top 0.2s ease;
     }
 
-    /* 當開啟天氣列或雙行股票走馬燈時，動態調整 Body 頂部邊距 */
-    body.has-weather-bar {
-      padding-top: max(60px, calc(50px + env(safe-area-inset-top)));
-    }
-    body.has-ticker-bar {
-      padding-top: max(85px, calc(75px + env(safe-area-inset-top)));
-    }
-    body.has-weather-bar.has-ticker-bar {
-      padding-top: max(135px, calc(125px + env(safe-area-inset-top)));
-    }
-
     /* 頂部單一行控制列 */
     .top-add-bar {
       width: 100%;
@@ -430,7 +419,7 @@
       white-space: nowrap;
     }
 
-    /* 天氣走馬燈 (播放 1 次後自動消失) */
+    /* 天氣走馬燈 */
     .weather-content {
       display: inline-block;
       white-space: nowrap;
@@ -439,8 +428,8 @@
       will-change: transform;
     }
 
-    /* ===== 頂部雙行股票/指數走馬燈列 ===== */
-    .stock-ticker-bar {
+    /* ===== 固定於天氣預報下方的香港新聞走馬燈列 ===== */
+    .news-bar {
       position: fixed;
       top: 0;
       left: 0;
@@ -456,14 +445,53 @@
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
       overflow: hidden;
       white-space: nowrap;
+    }
+
+    /* 滑鼠懸停時暫停走馬燈 */
+    .news-bar:hover .news-content {
+      animation-play-state: paused;
+    }
+
+    body.has-weather-bar .news-bar {
+      padding-top: 6px;
+    }
+
+    .news-content {
+      display: inline-block;
+      white-space: nowrap;
+      animation: newsTickerScroll 220s linear infinite;
+      will-change: transform;
+    }
+
+    .news-item {
+      display: inline-block;
+    }
+
+    /* ===== 頂部雙行股票/指數走馬燈列 ===== */
+    .stock-ticker-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background-color: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-main);
+      font-size: calc(14px * var(--font-scale)); 
+      font-weight: bold; 
+      padding: 6px 12px;
+      padding-top: max(6px, env(safe-area-inset-top));
+      z-index: 9997;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+      white-space: nowrap;
       display: flex;
       flex-direction: column;
       gap: 4px;
     }
 
-    /* 當天氣列同時開啟時，股票走馬燈自動下移 */
-    body.has-weather-bar .stock-ticker-bar {
-      top: max(42px, calc(38px + env(safe-area-inset-top)));
+    body.has-weather-bar .stock-ticker-bar,
+    body.has-news-bar .stock-ticker-bar {
+      padding-top: 6px;
     }
 
     .ticker-row {
@@ -504,7 +532,13 @@
       100% { transform: translateX(-100%); }
     }
 
-    /* 股票走馬燈動畫：每圈開始時停頓 1 秒 */
+    /* 新聞走馬燈動畫 */
+    @keyframes newsTickerScroll {
+      0%, 0.33% { transform: translateX(0%); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* 股票走馬燈動畫 */
     @keyframes stockTickerScroll {
       0%, 0.33% { transform: translateX(0%); }
       100% { transform: translateX(-50%); }
@@ -517,6 +551,11 @@
   <!-- 固定於手機螢幕頂部的天氣跑馬燈列 -->
   <div id="weatherBar" class="weather-bar" style="display: none;">
     <div id="weatherContent" class="weather-content">🌤️ 天氣資料載入中...</div>
+  </div>
+
+  <!-- 固定於天氣報告下方的香港新聞走馬燈列 -->
+  <div id="newsBar" class="news-bar" style="display: none;">
+    <div id="newsContent" class="news-content">📰 即時香港新聞載入中...</div>
   </div>
 
   <!-- 固定於頂部的雙行即時走馬燈列 (上行: 股票排行榜, 下行: 環球指數) -->
@@ -537,6 +576,7 @@
     <button class="theme-toggle-btn" onclick="changeFontSize(-1)" title="縮小字體">A-</button>
     <button class="theme-toggle-btn" onclick="changeFontSize(1)" title="放大字體">A+</button>
     <button id="tickerToggleBtn" class="theme-toggle-btn" onclick="toggleStockTicker()" title="股票走馬燈開關">📈</button>
+    <button id="newsToggleBtn" class="theme-toggle-btn" onclick="toggleNews()" title="香港新聞走馬燈開關">📰</button>
     <button id="weatherToggleBtn" class="theme-toggle-btn" onclick="toggleWeather()" title="天氣預報開關">🌤️</button>
     <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️</button>
   </div>
@@ -567,6 +607,35 @@
       }
     }
 
+    /* ================= 動態計算頂部列高度與 Body Padding ================= */
+    function updateTopPadding() {
+      const weatherBar = document.getElementById('weatherBar');
+      const newsBar = document.getElementById('newsBar');
+      const stockTickerBar = document.getElementById('stockTickerBar');
+
+      let topOffset = 0;
+
+      if (weatherBar && weatherBar.style.display !== 'none') {
+        weatherBar.style.top = '0px';
+        topOffset += weatherBar.offsetHeight;
+      }
+
+      if (newsBar && newsBar.style.display !== 'none') {
+        newsBar.style.top = topOffset + 'px';
+        topOffset += newsBar.offsetHeight;
+      }
+
+      if (stockTickerBar && stockTickerBar.style.display !== 'none') {
+        stockTickerBar.style.top = topOffset + 'px';
+        topOffset += stockTickerBar.offsetHeight;
+      }
+
+      const basePadding = 10;
+      document.body.style.paddingTop = (topOffset + basePadding) + 'px';
+    }
+
+    window.addEventListener('resize', updateTopPadding);
+
     /* ================= 網路連線狀態監聽 ================= */
     function initNetworkStatus() {
       window.addEventListener('offline', () => {
@@ -575,7 +644,7 @@
 
       window.addEventListener('online', () => {
         updateMarketStatus();
-        updateAllStocks(); // 連線恢復時立即觸發一次資料更新
+        updateAllStocks(); 
       });
     }
 
@@ -629,6 +698,164 @@
         const swURL = URL.createObjectURL(swBlob);
         navigator.serviceWorker.register(swURL).catch(() => {});
       }
+    }
+
+    /* ================= 香港即時新聞走馬燈功能 (Google News + 明報 + 東網) ================= */
+    const NEWS_STORAGE_KEY = 'hk_stock_news_preference';
+    const NEWS_ANIM_DURATION = 220; // 與 CSS newsTickerScroll 的 220s 動畫總時長保持一致
+    const NEWS_OFFSET_KEY = 'hk_stock_news_anim_offset';
+    let newsTimer = null;
+    let newsAnimStartTime = null; // 紀錄本次走馬燈動畫開始的時間戳
+
+    // 計算並保存當前新聞走馬燈滾動到的秒數位置
+    function saveNewsAnimationOffset() {
+      if (!newsAnimStartTime) return;
+      const elapsed = ((Date.now() - newsAnimStartTime) / 1000) % NEWS_ANIM_DURATION;
+      localStorage.setItem(NEWS_OFFSET_KEY, elapsed.toString());
+    }
+
+    // 當頁面關閉、切換至背景或隱藏時實時保存進度
+    ['visibilitychange', 'pagehide', 'beforeunload'].forEach(eventType => {
+      window.addEventListener(eventType, () => {
+        if (document.visibilityState === 'hidden' || eventType !== 'visibilitychange') {
+          saveNewsAnimationOffset();
+        }
+      });
+    });
+
+    function initNews() {
+      const savedNews = localStorage.getItem(NEWS_STORAGE_KEY);
+      const isEnabled = savedNews === 'true';
+      applyNewsState(isEnabled);
+    }
+
+    function toggleNews() {
+      const newsBar = document.getElementById('newsBar');
+      const isCurrentlyEnabled = newsBar && newsBar.style.display !== 'none';
+      const newState = !isCurrentlyEnabled;
+
+      localStorage.setItem(NEWS_STORAGE_KEY, newState.toString());
+      applyNewsState(newState);
+    }
+
+    function applyNewsState(isEnabled) {
+      const newsBar = document.getElementById('newsBar');
+      const newsContent = document.getElementById('newsContent');
+      const toggleBtn = document.getElementById('newsToggleBtn');
+
+      if (isEnabled) {
+        if (newsContent) {
+          // 讀取上次觀看的秒數進度
+          const savedOffset = parseFloat(localStorage.getItem(NEWS_OFFSET_KEY) || '0');
+          const validOffset = (isNaN(savedOffset) ? 0 : savedOffset) % NEWS_ANIM_DURATION;
+
+          // 設定負數 animation-delay，使走馬燈直接接續上次位置
+          newsContent.style.animationDelay = `-${validOffset}s`;
+          newsAnimStartTime = Date.now() - (validOffset * 1000);
+        }
+
+        if (newsBar) newsBar.style.display = 'block';
+        document.body.classList.add('has-news-bar');
+        if (toggleBtn) {
+          toggleBtn.classList.add('active');
+          toggleBtn.style.opacity = '1';
+        }
+        fetchNews();
+        if (!newsTimer) {
+          newsTimer = setInterval(fetchNews, 300000); // 每 5 分鐘更新一次新聞
+        }
+      } else {
+        // 關閉時儲存目前觀看位置
+        saveNewsAnimationOffset();
+
+        if (newsBar) newsBar.style.display = 'none';
+        document.body.classList.remove('has-news-bar');
+        if (toggleBtn) {
+          toggleBtn.classList.remove('active');
+          toggleBtn.style.opacity = '0.5';
+        }
+        if (newsTimer) {
+          clearInterval(newsTimer);
+          newsTimer = null;
+        }
+      }
+      updateTopPadding();
+    }
+
+    async function fetchNews() {
+      const newsBar = document.getElementById('newsBar');
+      const newsContent = document.getElementById('newsContent');
+      if (!newsBar || newsBar.style.display === 'none' || !navigator.onLine) return;
+
+      // 三大新聞來源設置
+      const sources = [
+        { name: 'Google新聞', url: 'https://news.google.com/rss?hl=zh-HK&gl=HK&ceid=HK:zh-Hant' },
+        { name: '明報', url: 'https://news.mingpao.com/rss/ins/s00001.xml' },
+        { name: '東網', url: 'https://news.on.cc/ncnews/rss/loc_news.xml' }
+      ];
+
+      try {
+        // 並行發起三個來源的抓取請求
+        const fetchPromises = sources.map(src => 
+          fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(src.url)}`)
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+              if (data && data.items && data.items.length > 0) {
+                return data.items.map(item => {
+                  let title = item.title ? item.title.trim() : '';
+                  // 清理 Google News 標題尾部的媒體名稱 (如: "... - 明報新聞網")
+                  title = title.replace(/\s*-\s*[^-]+$/, '');
+                  return { title: s2hk(title), source: src.name };
+                });
+              }
+              return [];
+            })
+            .catch(err => {
+              console.warn(`新聞來源 ${src.name} 抓取失敗:`, err);
+              return [];
+            })
+        );
+
+        const results = await Promise.all(fetchPromises);
+        let combinedNews = [];
+
+        // 輪流抽取各來源的前 6 條新聞，保證來源多元性
+        const maxItemsPerSource = 6;
+        for (let i = 0; i < maxItemsPerSource; i++) {
+          results.forEach(items => {
+            if (items[i]) {
+              combinedNews.push(items[i]);
+            }
+          });
+        }
+
+        // 新聞標題自動去重 (透過比對前 12 個字元)
+        const seenTitles = new Set();
+        const uniqueNews = [];
+
+        combinedNews.forEach(item => {
+          const key = item.title.substring(0, 12);
+          if (!seenTitles.has(key) && item.title.length > 0) {
+            seenTitles.add(key);
+            uniqueNews.push(item);
+          }
+        });
+
+        if (uniqueNews.length > 0) {
+          const formattedHtml = uniqueNews.map(item => 
+            `<span class="news-item">📰 [${item.source}] ${item.title}</span>`
+          ).join('&nbsp;&nbsp;&nbsp;&nbsp;🔹&nbsp;&nbsp;&nbsp;&nbsp;');
+
+          if (newsContent) {
+            newsContent.innerHTML = formattedHtml + '&nbsp;&nbsp;&nbsp;&nbsp;🔹&nbsp;&nbsp;&nbsp;&nbsp;' + formattedHtml;
+          }
+        } else if (newsContent && !newsContent.innerHTML.includes('📰 [')) {
+          newsContent.innerHTML = '📰 即時新聞更新中，請稍後...';
+        }
+      } catch (e) {
+        console.warn("新聞數據載入異常", e);
+      }
+      updateTopPadding();
     }
 
     /* ================= 頂部雙行股票排行榜與環球指數走馬燈功能 ================= */
@@ -689,7 +916,7 @@
         [ranksContent, indicesContent].forEach(el => {
           if (el) {
             el.style.animation = 'none';
-            void el.offsetWidth; // 強制重繪以重置動畫時間
+            void el.offsetWidth;
             el.style.animation = '';
           }
         });
@@ -716,6 +943,7 @@
           tickerTimer = null;
         }
       }
+      updateTopPadding();
     }
 
     function fetchStockTickerData() {
@@ -734,7 +962,6 @@
       loadJsonpScript(`https://push2.eastmoney.com/api/qt/clist/get?cb=onEastmoneyLosers&pn=1&pz=10&po=0&np=1&fltt=2&invt=2&fid=f3&fs=${fsParam}&fields=${fields}`, 'script-rank-losers');
     }
 
-    /* JSONP 載入完畢後自動清理 DOM 節點，防止 GC 壓力 */
     function loadJsonpScript(url, id) {
       const oldScript = document.getElementById(id);
       if (oldScript) oldScript.remove();
@@ -804,6 +1031,7 @@
         rankData.globalIndices.forEach(item => { htmlIndices += formatRankItem(item); });
         indicesEl.innerHTML = htmlIndices + htmlIndices;
       }
+      updateTopPadding();
     }
 
     /* ================= 天氣預報功能 (香港天文台 API) ================= */
@@ -867,6 +1095,7 @@
           weatherTimer = null;
         }
       }
+      updateTopPadding();
     }
 
     async function fetchWeather() {
@@ -915,6 +1144,7 @@
       } catch (e) {
         if (weatherContent) updateTextIfChanged(weatherContent, '🌤️ 天氣資料更新失敗，稍後重新嘗試');
       }
+      updateTopPadding();
     }
 
     /* ================= 文字大小控制與本地記憶 ================= */
@@ -943,6 +1173,7 @@
 
     function applyFontSize() {
       document.documentElement.style.setProperty('--font-scale', currentFontScale);
+      setTimeout(updateTopPadding, 50);
     }
 
     /* ================= 港股最低上落價位 (Minimum Tick Size) 對照表 ================= */
@@ -1231,21 +1462,18 @@
       saveStockList();
     }
 
-    /* ================= 股票資料讀取與增刪邏輯 (含驗證與防重機制) ================= */
+    /* ================= 股票資料讀取與增刪邏輯 ================= */
     function addStock() {
       const inputEl = document.getElementById('newStockInput');
       const val = inputEl.value.trim().toUpperCase();
       
-      // 1. 檢查是否為空白
       if (!val) return;
 
-      // 2. 檢查是否已在清單中 (不區分大小寫)
       if (stockList.some(item => item.symbol.trim().toUpperCase() === val)) {
         alert('該股票代號已在列表中');
         return;
       }
 
-      // 3. 執行新增邏輯
       const newItem = { id: nextId++, symbol: val };
       stockList.push(newItem);
       saveStockList();
@@ -1301,7 +1529,6 @@
     function updateMarketStatus() {
       const statusBadge = document.getElementById("marketStatusBadge");
 
-      // 優先判斷網路是否斷線
       if (!navigator.onLine) {
         if (statusBadge) updateTextIfChanged(statusBadge, "🔴 網路已斷開");
         return { isTrading: false, isAuction: false };
@@ -1792,12 +2019,13 @@
       item.lastPrice = newPrice;
     }
 
-    // 初始化 網路狀態監聽、PWA、主題、字體、天氣、雙行走馬燈、公眾假期與網頁列表
+    // 初始化所有模組
     initNetworkStatus();
     initPWA();
     initTheme();
     initFontSize();
     initWeather();
+    initNews();
     initStockTicker();
     renderGridUI();
     initDragAndDrop();
