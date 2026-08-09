@@ -76,7 +76,7 @@
 
     /* 當開啟天氣列時，增加 Body 底部預留邊距 */
     body.has-weather-bar {
-      padding-bottom: max(50px, calc(40px + env(safe-area-inset-bottom)));
+      padding-bottom: max(60px, calc(50px + env(safe-area-inset-bottom)));
     }
 
     /* 頂部單一行控制列 */
@@ -414,7 +414,8 @@
       background-color: var(--panel-bg);
       border-top: 1px solid var(--border-color);
       color: var(--text-main);
-      font-size: calc(12.5px * var(--font-scale));
+      font-size: calc(18px * var(--font-scale)); /* 設定為 18px */
+      font-weight: normal; /* 不加粗 */
       padding: 8px 12px;
       padding-bottom: max(8px, env(safe-area-inset-bottom));
       z-index: 9999;
@@ -423,20 +424,20 @@
       white-space: nowrap;
     }
 
-    /* 走馬燈文字慢速滾動動畫 (從左邊出現，靜止 5 秒後開始進行 80 秒移動，總週期 85 秒) */
+    /* 走馬燈文字慢速滾動動畫 (從左邊出現，靜止 5 秒後開始進行 100 秒移動，總週期 105 秒) */
     .weather-content {
       display: inline-block;
       white-space: nowrap;
       padding-left: 0;
-      animation: marqueeScroll 85s linear infinite;
+      animation: marqueeScroll 105s linear infinite;
       will-change: transform;
     }
 
     @keyframes marqueeScroll {
-      0%, 5.88% { /* 5 秒靜止 (5s / 85s ≈ 5.88%) */
+      0%, 4.76% { /* 5 秒靜止 (5s / 105s ≈ 4.76%) */
         transform: translateX(0);
       }
-      100% { /* 隨後 80 秒平緩向左滾動至消失 */
+      100% { /* 隨後 100 秒平緩向左滾動至消失 */
         transform: translateX(-100%);
       }
     }
