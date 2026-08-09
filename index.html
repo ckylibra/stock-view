@@ -424,12 +424,12 @@
       white-space: nowrap;
     }
 
-    /* 走馬燈文字慢速滾動動畫 (改為靜止 1 秒，總週期 101 秒) */
+    /* 走馬燈文字慢速滾動動畫 (播放 3 次後自動結束) */
     .weather-content {
       display: inline-block;
       white-space: nowrap;
       padding-left: 0;
-      animation: marqueeScroll 101s linear infinite;
+      animation: marqueeScroll 101s linear 3;
       will-change: transform;
     }
 
@@ -547,6 +547,15 @@
     function initWeather() {
       const savedWeather = localStorage.getItem(WEATHER_STORAGE_KEY);
       const isEnabled = savedWeather === 'true'; 
+
+      // 監聽跑馬燈動畫結束事件 (播放 3 次後自動隱藏)
+      const weatherContent = document.getElementById('weatherContent');
+      if (weatherContent) {
+        weatherContent.addEventListener('animationend', () => {
+          applyWeatherState(false);
+        });
+      }
+
       applyWeatherState(isEnabled);
     }
 
@@ -561,9 +570,17 @@
 
     function applyWeatherState(isEnabled) {
       const weatherBar = document.getElementById('weatherBar');
+      const weatherContent = document.getElementById('weatherContent');
       const toggleBtn = document.getElementById('weatherToggleBtn');
 
       if (isEnabled) {
+        // 重置動畫，確保手動重新打開天氣時能重新計數播放 3 次
+        if (weatherContent) {
+          weatherContent.style.animation = 'none';
+          void weatherContent.offsetWidth; // 觸發 DOM 重繪 (reflow)
+          weatherContent.style.animation = ''; // 恢復 CSS 預設動畫設定
+        }
+
         if (weatherBar) weatherBar.style.display = 'block';
         document.body.classList.add('has-weather-bar');
         if (toggleBtn) {
