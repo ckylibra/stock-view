@@ -71,12 +71,18 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      transition: background-color 0.2s ease, color 0.2s ease;
+      transition: background-color 0.2s ease, color 0.2s ease, padding-top 0.2s ease;
     }
 
-    /* 當開啟天氣列時，增加 Body 頂部預留邊距 */
+    /* 當開啟天氣列或股票走馬燈時，動態調整 Body 頂部邊距 */
     body.has-weather-bar {
-      padding-top: max(70px, calc(60px + env(safe-area-inset-top)));
+      padding-top: max(60px, calc(50px + env(safe-area-inset-top)));
+    }
+    body.has-ticker-bar {
+      padding-top: max(55px, calc(45px + env(safe-area-inset-top)));
+    }
+    body.has-weather-bar.has-ticker-bar {
+      padding-top: max(105px, calc(95px + env(safe-area-inset-top)));
     }
 
     /* 頂部單一行控制列 */
@@ -109,8 +115,8 @@
 
     /* 縮窄後的輸入框 */
     .top-add-bar input {
-      width: 130px;
-      flex: 0 1 130px;
+      width: 120px;
+      flex: 0 1 120px;
       padding: 8px 10px;
       border-radius: 8px;
       border: 1px solid var(--border-color);
@@ -405,7 +411,7 @@
       color: var(--text-main);
     }
 
-    /* ===== 固定於手機螢幕最頂部的跑馬燈天氣預報列 ===== */
+    /* ===== 固定於手機螢幕頂部的天氣預報列 ===== */
     .weather-bar {
       position: fixed;
       top: 0;
@@ -414,32 +420,85 @@
       background-color: var(--panel-bg);
       border-bottom: 1px solid var(--border-color);
       color: var(--text-main);
-      font-size: calc(24px * var(--font-scale)); 
+      font-size: calc(18px * var(--font-scale)); 
       font-weight: bold; 
-      padding: 10px 12px;
-      padding-top: max(10px, env(safe-area-inset-top));
+      padding: 8px 12px;
+      padding-top: max(8px, env(safe-area-inset-top));
       z-index: 9999;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
       overflow: hidden;
       white-space: nowrap;
     }
 
-    /* 走馬燈文字慢速滾動動畫 (播放 3 次後自動結束) */
+    /* 天氣走馬燈 (播放 1 次後自動消失) */
     .weather-content {
       display: inline-block;
       white-space: nowrap;
       padding-left: 0;
-      animation: marqueeScroll 101s linear 3;
+      animation: marqueeScroll 101s linear 1;
       will-change: transform;
     }
 
+    /* ===== 頂部股票排行榜走馬燈列 ===== */
+    .stock-ticker-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background-color: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-main);
+      font-size: calc(15px * var(--font-scale)); 
+      font-weight: bold; 
+      padding: 8px 12px;
+      padding-top: max(8px, env(safe-area-inset-top));
+      z-index: 9998;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    /* 當天氣列同時開啟時，股票走馬燈自動下移 */
+    body.has-weather-bar .stock-ticker-bar {
+      top: max(42px, calc(38px + env(safe-area-inset-top)));
+    }
+
+    .stock-ticker-content {
+      display: inline-block;
+      white-space: nowrap;
+      animation: stockTickerScroll 300s linear infinite; /* 改為 300s 讓滾動更平緩 */
+      will-change: transform;
+    }
+
+    .ticker-section-title {
+      display: inline-block;
+      margin-right: 12px;
+      margin-left: 20px;
+      color: #ffffff;
+      background: var(--accent);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: calc(13px * var(--font-scale));
+    }
+
+    .ticker-item {
+      display: inline-block;
+      margin-right: 20px;
+    }
+
+    .ticker-up { color: var(--up-color); }
+    .ticker-down { color: var(--down-color); }
+    .ticker-flat { color: var(--flat-color); }
+
     @keyframes marqueeScroll {
-      0%, 0.99% { /* 1 秒靜止 (1s / 101s ≈ 0.99%) */
-        transform: translateX(0);
-      }
-      100% { /* 隨後 100 秒平緩向左滾動至消失 */
-        transform: translateX(-100%);
-      }
+      0%, 0.99% { transform: translateX(0); }
+      100% { transform: translateX(-100%); }
+    }
+
+    /* 股票走馬燈動畫：每圈開始時停頓 1 秒 (0.33% 的 300 秒約等於 1 秒) */
+    @keyframes stockTickerScroll {
+      0%, 0.33% { transform: translateX(0%); }
+      100% { transform: translateX(-50%); }
     }
 
   </style>
@@ -451,13 +510,19 @@
     <div id="weatherContent" class="weather-content">🌤️ 天氣資料載入中...</div>
   </div>
 
+  <!-- 固定於頂部的股票 3 大排行榜即時走馬燈列 -->
+  <div id="stockTickerBar" class="stock-ticker-bar" style="display: none;">
+    <div id="stockTickerContent" class="stock-ticker-content">📈 排行榜資料載入中...</div>
+  </div>
+
   <!-- 最頂層單一行控制列 -->
   <div class="top-add-bar">
     <button onclick="addStock()">新增</button>
-    <input type="text" id="newStockInput" placeholder="代號 (如:0700, WTI, BRENT)">
+    <input type="text" id="newStockInput" placeholder="代號 (如:0700, WTI)">
     <span id="marketStatusBadge" class="status-badge">載入中...</span>
     <button class="theme-toggle-btn" onclick="changeFontSize(-1)" title="縮小字體">A-</button>
     <button class="theme-toggle-btn" onclick="changeFontSize(1)" title="放大字體">A+</button>
+    <button id="tickerToggleBtn" class="theme-toggle-btn" onclick="toggleStockTicker()" title="股票走馬燈開關">📈</button>
     <button id="weatherToggleBtn" class="theme-toggle-btn" onclick="toggleWeather()" title="天氣預報開關">🌤️</button>
     <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️</button>
   </div>
@@ -540,6 +605,155 @@
       }
     }
 
+    /* ================= 頂部股票排行榜走馬燈功能 (成交額、升幅榜、跌幅榜 各10隻) ================= */
+    const TICKER_STORAGE_KEY = 'hk_stock_ticker_preference';
+    let tickerTimer = null;
+    let rankData = { turnover: [], gainers: [], losers: [] };
+
+    window.onEastmoneyTurnover = function(res) {
+      if (res && res.data && res.data.diff) {
+        rankData.turnover = res.data.diff;
+        renderTickerContent();
+      }
+    };
+
+    window.onEastmoneyGainers = function(res) {
+      if (res && res.data && res.data.diff) {
+        rankData.gainers = res.data.diff;
+        renderTickerContent();
+      }
+    };
+
+    window.onEastmoneyLosers = function(res) {
+      if (res && res.data && res.data.diff) {
+        rankData.losers = res.data.diff;
+        renderTickerContent();
+      }
+    };
+
+    function initStockTicker() {
+      const savedState = localStorage.getItem(TICKER_STORAGE_KEY);
+      const isEnabled = savedState === 'true';
+      applyStockTickerState(isEnabled);
+    }
+
+    function toggleStockTicker() {
+      const tickerBar = document.getElementById('stockTickerBar');
+      const isCurrentlyEnabled = tickerBar && tickerBar.style.display !== 'none';
+      const newState = !isCurrentlyEnabled;
+
+      localStorage.setItem(TICKER_STORAGE_KEY, newState.toString());
+      applyStockTickerState(newState);
+    }
+
+    function applyStockTickerState(isEnabled) {
+      const tickerBar = document.getElementById('stockTickerBar');
+      const tickerContent = document.getElementById('stockTickerContent');
+      const toggleBtn = document.getElementById('tickerToggleBtn');
+
+      if (isEnabled) {
+        if (tickerContent) {
+          tickerContent.style.animation = 'none';
+          void tickerContent.offsetWidth; // 強制重繪以重置停頓時間
+          tickerContent.style.animation = '';
+        }
+
+        if (tickerBar) tickerBar.style.display = 'block';
+        document.body.classList.add('has-ticker-bar');
+        if (toggleBtn) {
+          toggleBtn.classList.add('active');
+          toggleBtn.style.opacity = '1';
+        }
+        fetchStockTickerData();
+        if (!tickerTimer) {
+          tickerTimer = setInterval(fetchStockTickerData, 10000); 
+        }
+      } else {
+        if (tickerBar) tickerBar.style.display = 'none';
+        document.body.classList.remove('has-ticker-bar');
+        if (toggleBtn) {
+          toggleBtn.classList.remove('active');
+          toggleBtn.style.opacity = '0.5';
+        }
+        if (tickerTimer) {
+          clearInterval(tickerTimer);
+          tickerTimer = null;
+        }
+      }
+    }
+
+    function fetchStockTickerData() {
+      const fsParam = 'm:128+t:3,m:128+t:4,m:128+t:1,m:128+t:2';
+      const fields = 'f2,f3,f6,f12,f14';
+
+      // 1. 成交額 Top 10 (f6 desc)
+      loadJsonpScript(`https://push2.eastmoney.com/api/qt/clist/get?cb=onEastmoneyTurnover&pn=1&pz=10&po=1&np=1&fltt=2&invt=2&fid=f6&fs=${fsParam}&fields=${fields}`, 'script-rank-turnover');
+
+      // 2. 最大升幅 Top 10 (f3 desc)
+      loadJsonpScript(`https://push2.eastmoney.com/api/qt/clist/get?cb=onEastmoneyGainers&pn=1&pz=10&po=1&np=1&fltt=2&invt=2&fid=f3&fs=${fsParam}&fields=${fields}`, 'script-rank-gainers');
+
+      // 3. 最大跌幅 Top 10 (f3 asc)
+      loadJsonpScript(`https://push2.eastmoney.com/api/qt/clist/get?cb=onEastmoneyLosers&pn=1&pz=10&po=0&np=1&fltt=2&invt=2&fid=f3&fs=${fsParam}&fields=${fields}`, 'script-rank-losers');
+    }
+
+    function loadJsonpScript(url, id) {
+      const oldScript = document.getElementById(id);
+      if (oldScript) oldScript.remove();
+
+      const script = document.createElement('script');
+      script.id = id;
+      script.src = url;
+      document.body.appendChild(script);
+    }
+
+    function formatRankItem(item) {
+      if (!item || item.f2 === '-' || item.f2 === undefined) return '';
+      const code = item.f12;
+      const name = s2hk(item.f14 || '');
+      const price = typeof item.f2 === 'number' ? item.f2.toFixed(item.f2 < 1 ? 3 : 2) : item.f2;
+      const changePct = typeof item.f3 === 'number' ? item.f3.toFixed(2) : '0.00';
+
+      let cssClass = 'ticker-flat';
+      let icon = '➖';
+      let sign = '';
+      if (item.f3 > 0) {
+        cssClass = 'ticker-up';
+        icon = '▲';
+        sign = '+';
+      } else if (item.f3 < 0) {
+        cssClass = 'ticker-down';
+        icon = '▼';
+      }
+
+      return `<span class="ticker-item ${cssClass}">${icon} ${name}(${code}): ${price} (${sign}${changePct}%)</span>`;
+    }
+
+    function renderTickerContent() {
+      const tickerContent = document.getElementById('stockTickerContent');
+      if (!tickerContent) return;
+
+      let html = '';
+
+      if (rankData.turnover.length > 0) {
+        html += `<span class="ticker-section-title">💰 最多成交 TOP 10</span>`;
+        rankData.turnover.forEach(item => { html += formatRankItem(item); });
+      }
+
+      if (rankData.gainers.length > 0) {
+        html += `<span class="ticker-section-title">🚀 最大升幅 TOP 10</span>`;
+        rankData.gainers.forEach(item => { html += formatRankItem(item); });
+      }
+
+      if (rankData.losers.length > 0) {
+        html += `<span class="ticker-section-title">📉 最大跌幅 TOP 10</span>`;
+        rankData.losers.forEach(item => { html += formatRankItem(item); });
+      }
+
+      if (html) {
+        tickerContent.innerHTML = html + html; 
+      }
+    }
+
     /* ================= 天氣預報功能 (香港天文台 API - 屯門實時氣溫 + 今明預報) ================= */
     const WEATHER_STORAGE_KEY = 'hk_stock_weather_preference';
     let weatherTimer = null;
@@ -548,7 +762,7 @@
       const savedWeather = localStorage.getItem(WEATHER_STORAGE_KEY);
       const isEnabled = savedWeather === 'true'; 
 
-      // 監聽跑馬燈動畫結束事件 (播放 3 次後自動隱藏)
+      // 天氣跑馬燈播放 1 次後自動消失
       const weatherContent = document.getElementById('weatherContent');
       if (weatherContent) {
         weatherContent.addEventListener('animationend', () => {
@@ -574,11 +788,10 @@
       const toggleBtn = document.getElementById('weatherToggleBtn');
 
       if (isEnabled) {
-        // 重置動畫，確保手動重新打開天氣時能重新計數播放 3 次
         if (weatherContent) {
           weatherContent.style.animation = 'none';
-          void weatherContent.offsetWidth; // 觸發 DOM 重繪 (reflow)
-          weatherContent.style.animation = ''; // 恢復 CSS 預設動畫設定
+          void weatherContent.offsetWidth; 
+          weatherContent.style.animation = ''; 
         }
 
         if (weatherBar) weatherBar.style.display = 'block';
@@ -611,14 +824,12 @@
       if (!weatherBar || weatherBar.style.display === 'none') return;
 
       try {
-        // 1. 抓取屯門實時氣溫 (rhrread API)
         const resRealtime = await fetch('https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc');
         if (!resRealtime.ok) throw new Error('Realtime network error');
         const dataRealtime = await resRealtime.json();
 
         let tuenMunTemp = '--';
         if (dataRealtime.temperature && dataRealtime.temperature.data) {
-          // 精準獲取屯門氣象站數據
           const tmData = dataRealtime.temperature.data.find(item => item.place === '屯門');
           tuenMunTemp = tmData ? tmData.value : (dataRealtime.temperature.data[0]?.value || '--');
         }
@@ -630,7 +841,6 @@
 
         const updateTime = dataRealtime.updateTime ? dataRealtime.updateTime.substring(11, 16) : '';
 
-        // 2. 抓取九天天氣預報 (fnd API，取得今天與明天)
         let todayDesc = '--', tomorrowDesc = '--';
         try {
           const resForecast = await fetch('https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=fnd&lang=tc');
@@ -648,7 +858,6 @@
           console.warn("預報抓取異常", fErr);
         }
 
-        // 3. 組合顯示「現在、今天、明天」走馬燈文字
         const weatherText = `📍 屯門/藍地即時 (${updateTime}): 🌡️ ${tuenMunTemp}°C (濕度${humidity}%) ｜ 📅 今日預報: ${todayDesc} ｜ 🔮 明日預報: ${tomorrowDesc}`;
         if (weatherContent) updateTextIfChanged(weatherContent, weatherText);
 
@@ -694,14 +903,13 @@
       if (price <= 100.00) return 0.050;
       if (price <= 200.00) return 0.100;
       if (price <= 500.00) return 0.200;
-      if (price <= 1000.00) return 0.500;
-      if (price <= 2000.00) return 1.000;
+      if (price <= 1000.00) return 1.000;
+      if (price <= 2000.00) return 2.000;
       if (price <= 5000.00) return 2.000;
       if (price <= 9995.00) return 5.000;
       return 10.000;
     }
 
-    /* 隨機生成 2K 至 990K 之間的數量 */
     function getRandomVol() {
       const minK = 2;
       const maxK = 990;
@@ -709,7 +917,6 @@
       return randomK * 1000;
     }
 
-    /* 觸發區塊閃爍動畫工具 */
     function triggerBoxFlash(el, className) {
       if (!el) return;
       el.classList.remove(className);
@@ -1467,11 +1674,12 @@
       item.lastPrice = newPrice;
     }
 
-    // 初始化 PWA、主題、字體、天氣與網頁列表
+    // 初始化 PWA、主題、字體、天氣、股票排行榜走馬燈與網頁列表
     initPWA();
     initTheme();
     initFontSize();
     initWeather();
+    initStockTicker();
     renderGridUI();
     initDragAndDrop();
     updateAllStocks();
