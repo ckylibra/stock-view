@@ -61,21 +61,30 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
+    /* 取消 body 的 flex 佈局，避免干擾 fixed 定位元素 */
     body {
       background-color: var(--bg-color);
       color: var(--text-main);
-      padding: 10px;
-      padding-top: max(10px, env(safe-area-inset-top)); /* 適應 iPhone 劉海屏 / 動態島 */
-      padding-bottom: max(10px, env(safe-area-inset-bottom));
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      width: 100%;
+      margin: 0;
+      padding: 0;
       transition: background-color 0.2s ease, color 0.2s ease;
     }
 
-    /* 當開啟天氣列時，增加 Body 底部預留邊距 */
-    body.has-weather-bar {
+    /* 主內容區域包裹層 */
+    .app-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px;
+      padding-top: max(10px, env(safe-area-inset-top)); /* 適應 iPhone 劉海屏 / 動態島 */
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+      width: 100%;
+    }
+
+    /* 當開啟天氣列時，增加內容區域底部預留邊距 */
+    body.has-weather-bar .app-content {
       padding-bottom: max(70px, calc(60px + env(safe-area-inset-bottom)));
     }
 
@@ -407,9 +416,10 @@
 
     /* ===== 固定於手機螢幕最底部的跑馬燈天氣預報列 ===== */
     .weather-bar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
+      position: fixed !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
       width: 100%;
       background-color: var(--panel-bg);
       border-top: 1px solid var(--border-color);
@@ -418,13 +428,14 @@
       font-weight: bold; 
       padding: 10px 12px;
       padding-bottom: max(10px, env(safe-area-inset-bottom));
-      z-index: 9999;
+      z-index: 99999;
       box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.2);
       overflow: hidden;
       white-space: nowrap;
+      transform: translateZ(0); /* 強制開啟硬件加速層，解決 Android Webview 定位不固定問題 */
     }
 
-    /* 走馬燈文字慢速滾動動畫 (改為靜止 1 秒，總週期 101 秒) */
+    /* 走馬燈文字慢速滾動動畫 (靜止 1 秒，總週期 101 秒) */
     .weather-content {
       display: inline-block;
       white-space: nowrap;
@@ -434,10 +445,10 @@
     }
 
     @keyframes marqueeScroll {
-      0%, 0.99% { /* 1 秒靜止 (1s / 101s ≈ 0.99%) */
+      0%, 0.99% { 
         transform: translateX(0);
       }
-      100% { /* 隨後 100 秒平緩向左滾動至消失 */
+      100% { 
         transform: translateX(-100%);
       }
     }
@@ -446,21 +457,24 @@
 </head>
 <body>
 
-  <!-- 最頂層單一行控制列 -->
-  <div class="top-add-bar">
-    <button onclick="addStock()">新增</button>
-    <input type="text" id="newStockInput" placeholder="代號 (如:0700, WTI, BRENT)">
-    <span id="marketStatusBadge" class="status-badge">載入中...</span>
-    <button class="theme-toggle-btn" onclick="changeFontSize(-1)" title="縮小字體">A-</button>
-    <button class="theme-toggle-btn" onclick="changeFontSize(1)" title="放大字體">A+</button>
-    <button id="weatherToggleBtn" class="theme-toggle-btn" onclick="toggleWeather()" title="天氣預報開關">🌤️</button>
-    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️</button>
+  <!-- 主內容包裹區域 -->
+  <div class="app-content">
+    <!-- 最頂層單一行控制列 -->
+    <div class="top-add-bar">
+      <button onclick="addStock()">新增</button>
+      <input type="text" id="newStockInput" placeholder="代號 (如:0700, WTI, BRENT)">
+      <span id="marketStatusBadge" class="status-badge">載入中...</span>
+      <button class="theme-toggle-btn" onclick="changeFontSize(-1)" title="縮小字體">A-</button>
+      <button class="theme-toggle-btn" onclick="changeFontSize(1)" title="放大字體">A+</button>
+      <button id="weatherToggleBtn" class="theme-toggle-btn" onclick="toggleWeather()" title="天氣預報開關">🌤️</button>
+      <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️</button>
+    </div>
+
+    <!-- 卡片列表區域 -->
+    <div class="grid-container" id="gridContainer"></div>
   </div>
 
-  <!-- 卡片列表區域 -->
-  <div class="grid-container" id="gridContainer"></div>
-
-  <!-- 固定於手機螢幕底部的天氣跑馬燈列 -->
+  <!-- 固定於手機螢幕底部的天氣跑馬燈列 (獨立於內容包裹層之外) -->
   <div id="weatherBar" class="weather-bar" style="display: none;">
     <div id="weatherContent" class="weather-content">🌤️ 天氣資料載入中...</div>
   </div>
@@ -601,7 +615,6 @@
 
         let tuenMunTemp = '--';
         if (dataRealtime.temperature && dataRealtime.temperature.data) {
-          // 精準獲取屯門氣象站數據
           const tmData = dataRealtime.temperature.data.find(item => item.place === '屯門');
           tuenMunTemp = tmData ? tmData.value : (dataRealtime.temperature.data[0]?.value || '--');
         }
