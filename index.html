@@ -2,9 +2,21 @@
 <html lang="zh-HK">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="referrer" content="no-referrer">
   <title>港股及原油即時看盤</title>
+
+  <!-- PWA & 全螢幕獨立 App 標籤 (iOS / Android) -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="港股看盤">
+  <meta name="theme-color" id="themeColorMeta" content="#121212">
+
+  <!-- App 圖示 (嵌入式 SVG Data URI) -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%231f538d'/><text x='50' y='68' font-size='55' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>港</text></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%231f538d'/><text x='50' y='68' font-size='55' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>港</text></svg>">
+
   <!-- 引入繁簡轉換工具 OpenCC-JS -->
   <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
   <style>
@@ -52,6 +64,8 @@
       background-color: var(--bg-color);
       color: var(--text-main);
       padding: 10px;
+      padding-top: max(10px, env(safe-area-inset-top)); /* 適應 iPhone 劉海屏 / 動態島 */
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -408,6 +422,67 @@
       console.warn("繁簡轉換庫載入失敗");
     }
 
+    /* ================= 效能優化：DOM Diffing 輔助函數 ================= */
+    function updateTextIfChanged(el, newText) {
+      if (el && el.textContent !== newText) {
+        el.textContent = newText;
+      }
+    }
+
+    function updateStyleIfChanged(el, property, newValue) {
+      if (el && el.style[property] !== newValue) {
+        el.style[property] = newValue;
+      }
+    }
+
+    /* ================= PWA 動態 Manifest 與 Service Worker 初始化 ================= */
+    function initPWA() {
+      // 1. 動態生成 Web App Manifest Blob URL
+      const manifestObj = {
+        name: "港股及原油即時看盤",
+        short_name: "港股看盤",
+        description: "高效能港股與原油期貨即時看盤工具",
+        start_url: "./",
+        display: "standalone",
+        orientation: "portrait",
+        background_color: "#121212",
+        theme_color: "#121212",
+        icons: [
+          {
+            src: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%231f538d'/><text x='50' y='68' font-size='55' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>港</text></svg>",
+            sizes: "512x512",
+            type: "image/svg+xml",
+            purpose: "any maskable"
+          }
+        ]
+      };
+
+      const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' });
+      const manifestURL = URL.createObjectURL(manifestBlob);
+      const manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      manifestLink.href = manifestURL;
+      document.head.appendChild(manifestLink);
+
+      // 2. 註冊 Inline Service Worker (滿足 PWA 可安裝機制)
+      if ('serviceWorker' in navigator) {
+        const swCode = `
+          self.addEventListener('install', (e) => self.skipWaiting());
+          self.addEventListener('activate', (e) => self.clients.claim());
+          self.addEventListener('fetch', (e) => {
+            if (e.request.method === 'GET') {
+              e.respondWith(
+                fetch(e.request).catch(() => caches.match(e.request))
+              );
+            }
+          });
+        `;
+        const swBlob = new Blob([swCode], { type: 'application/javascript' });
+        const swURL = URL.createObjectURL(swBlob);
+        navigator.serviceWorker.register(swURL).catch(() => {});
+      }
+    }
+
     /* ================= 文字大小控制與本地記憶 ================= */
     const FONT_STORAGE_KEY = 'hk_stock_font_scale_preference';
     let currentFontScale = 1.0;
@@ -468,7 +543,7 @@
       el.classList.add(className);
     }
 
-    /* ================= 主題切換 (日 / 夜) ================= */
+    /* ================= 主題切換 (日 / 夜 & PWA 狀態列顏色同步) ================= */
     const THEME_STORAGE_KEY = 'hk_stock_theme_preference';
 
     function initTheme() {
@@ -491,7 +566,13 @@
     function updateThemeBtnText(isLight) {
       const btn = document.getElementById('themeToggleBtn');
       if (btn) {
-        btn.innerHTML = isLight ? '🌙' : '☀️';
+        updateTextIfChanged(btn, isLight ? '🌙' : '☀️');
+      }
+
+      // 同步動態更新 PWA / 手機瀏覽器上方頂部狀態列顏色
+      const themeColorMeta = document.getElementById('themeColorMeta');
+      if (themeColorMeta) {
+        themeColorMeta.setAttribute('content', isLight ? '#f0f2f5' : '#121212');
       }
     }
 
@@ -747,56 +828,44 @@
       const day = now.getDay();
       const statusBadge = document.getElementById("marketStatusBadge");
 
-      if (day === 0 || day === 6) {
-        if (statusBadge) statusBadge.innerText = "⚪ 非交易日";
-        return { isTrading: false, isAuction: false };
-      }
-
-      const hours = now.getHours();
-      const minutes = now.getMinutes();
-      const timeInMinutes = hours * 60 + minutes;
-
+      let statusText = "🔴 已收市";
       let isTrading = false;
       let isAuction = false;
-      let statusText = "🔴 已收市";
 
-      if (timeInMinutes >= 9 * 60 && timeInMinutes < 9 * 60 + 20) {
-        statusText = "🟡 開市競價";
-        isTrading = true;
-        isAuction = true;
-      } 
-      else if (timeInMinutes >= 9 * 60 + 20 && timeInMinutes < 9 * 60 + 30) {
-        statusText = "🟡 競價暫停";
-        isTrading = false;
-        isAuction = false;
-      }
-      else if (timeInMinutes >= 9 * 60 + 30 && timeInMinutes < 12 * 60) {
-        statusText = "🟢 盤中交易";
-        isTrading = true;
-        isAuction = false;
-      }
-      else if (timeInMinutes >= 12 * 60 && timeInMinutes < 13 * 60) {
-        statusText = "🟡 午休";
-        isTrading = false;
-        isAuction = false;
-      }
-      else if (timeInMinutes >= 13 * 60 && timeInMinutes < 16 * 60) {
-        statusText = "🟢 盤中交易";
-        isTrading = true;
-        isAuction = false;
-      }
-      else if (timeInMinutes >= 16 * 60 && timeInMinutes < 16 * 60 + 10) {
-        statusText = "🟡 收市競價";
-        isTrading = true;
-        isAuction = true;
-      } 
-      else {
-        statusText = "🔴 已收市";
-        isTrading = false;
-        isAuction = false;
+      if (day === 0 || day === 6) {
+        statusText = "⚪ 非交易日";
+      } else {
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const timeInMinutes = hours * 60 + minutes;
+
+        if (timeInMinutes >= 9 * 60 && timeInMinutes < 9 * 60 + 20) {
+          statusText = "🟡 開市競價";
+          isTrading = true;
+          isAuction = true;
+        } 
+        else if (timeInMinutes >= 9 * 60 + 20 && timeInMinutes < 9 * 60 + 30) {
+          statusText = "🟡 競價暫停";
+        }
+        else if (timeInMinutes >= 9 * 60 + 30 && timeInMinutes < 12 * 60) {
+          statusText = "🟢 盤中交易";
+          isTrading = true;
+        }
+        else if (timeInMinutes >= 12 * 60 && timeInMinutes < 13 * 60) {
+          statusText = "🟡 午休";
+        }
+        else if (timeInMinutes >= 13 * 60 && timeInMinutes < 16 * 60) {
+          statusText = "🟢 盤中交易";
+          isTrading = true;
+        }
+        else if (timeInMinutes >= 16 * 60 && timeInMinutes < 16 * 60 + 10) {
+          statusText = "🟡 收市競價";
+          isTrading = true;
+          isAuction = true;
+        } 
       }
 
-      if (statusBadge) statusBadge.innerText = statusText;
+      if (statusBadge) updateTextIfChanged(statusBadge, statusText);
       return { isTrading, isAuction };
     }
 
@@ -866,7 +935,7 @@
           parseAndRenderStock(item, dataStr);
         });
 
-        scheduleNextUpdate(true); // 包含原油時建議保持持續更新
+        scheduleNextUpdate(true);
       };
 
       script.onerror = () => {
@@ -925,7 +994,7 @@
       }
     }
 
-    /* ================= 第一檔買賣盤渲染與動態閃爍邏輯 ================= */
+    /* ================= 第一檔買賣盤渲染與動態閃爍邏輯 (Diffing 優化) ================= */
     function renderDepthPanel(item) {
       const bidPriceEl = document.getElementById(`bid-price-${item.id}`);
       const askPriceEl = document.getElementById(`ask-price-${item.id}`);
@@ -996,11 +1065,11 @@
         sellRatio = (askVol / totalDepthVol) * 100;
       }
 
-      bidPriceEl.innerText = bidPrice.toFixed(3);
-      askPriceEl.innerText = askPrice.toFixed(3);
-
-      bidPriceEl.style.color = getPriceColor(bidPrice, prevClose);
-      askPriceEl.style.color = getPriceColor(askPrice, prevClose);
+      // 精準比對與渲染
+      updateTextIfChanged(bidPriceEl, bidPrice.toFixed(3));
+      updateTextIfChanged(askPriceEl, askPrice.toFixed(3));
+      updateStyleIfChanged(bidPriceEl, 'color', getPriceColor(bidPrice, prevClose));
+      updateStyleIfChanged(askPriceEl, 'color', getPriceColor(askPrice, prevClose));
 
       const bidVolEl = document.getElementById(`bid-vol-${item.id}`);
       const askVolEl = document.getElementById(`ask-vol-${item.id}`);
@@ -1009,14 +1078,16 @@
       const buyBarEl = document.getElementById(`buy-bar-${item.id}`);
       const sellBarEl = document.getElementById(`sell-bar-${item.id}`);
 
-      if (bidVolEl) bidVolEl.innerText = formatVolDisplay(bidVol);
-      if (askVolEl) askVolEl.innerText = formatVolDisplay(askVol);
+      const buyRatioStr = `${buyRatio.toFixed(2)}%`;
+      const sellRatioStr = `${sellRatio.toFixed(2)}%`;
 
-      if (buyPctEl) buyPctEl.innerText = `${buyRatio.toFixed(2)}%`;
-      if (sellPctEl) sellPctEl.innerText = `${sellRatio.toFixed(2)}%`;
+      updateTextIfChanged(bidVolEl, formatVolDisplay(bidVol));
+      updateTextIfChanged(askVolEl, formatVolDisplay(askVol));
+      updateTextIfChanged(buyPctEl, buyRatioStr);
+      updateTextIfChanged(sellPctEl, sellRatioStr);
 
-      if (buyBarEl) buyBarEl.style.width = `${buyRatio.toFixed(2)}%`;
-      if (sellBarEl) sellBarEl.style.width = `${sellRatio.toFixed(2)}%`;
+      updateStyleIfChanged(buyBarEl, 'width', buyRatioStr);
+      updateStyleIfChanged(sellBarEl, 'width', sellRatioStr);
     }
 
     setInterval(() => {
@@ -1027,7 +1098,7 @@
       });
     }, 500);
 
-    /* ================= 解析股票與原油期貨數據 ================= */
+    /* ================= 解析股票與原油期貨數據 (Diffing 優化) ================= */
     function parseAndRenderStock(item, dataStr) {
       const titleEl = document.getElementById(`title-${item.id}`);
       if (!titleEl) return; 
@@ -1036,7 +1107,7 @@
       const isIndex = symbol === 'HSI' || symbol === 'HKHSI';
       const isOil = ['WTI', 'CL', 'HF_CL', 'BRENT', 'OIL', 'BZ', 'HF_OIL'].includes(symbol);
 
-      /* ===== 處理原油期貨數據 (逗號分隔格式) ===== */
+      /* ===== 處理原油期貨數據 ===== */
       if (isOil && dataStr) {
         const parts = dataStr.split(',');
         if (parts.length >= 8) {
@@ -1053,11 +1124,11 @@
             stockName = (symbol.includes('WTI') || symbol.includes('CL')) ? 'WTI原油期貨' : '布倫特原油期貨';
           }
 
-          titleEl.innerText = `${stockName} (${symbol})`;
+          updateTextIfChanged(titleEl, `${stockName} (${symbol})`);
           
           const priceEl = document.getElementById(`price-${item.id}`);
           const changeEl = document.getElementById(`change-${item.id}`);
-          priceEl.innerText = price.toFixed(2);
+          updateTextIfChanged(priceEl, price.toFixed(2));
 
           let color = 'var(--flat-color)';
           let prefix = '';
@@ -1069,25 +1140,24 @@
             prefix = '▼ ';
           }
 
-          priceEl.style.color = color;
-          changeEl.style.color = color;
-          changeEl.innerText = `${prefix}${change.toFixed(2)}\u00A0\u00A0\u00A0(${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+          updateStyleIfChanged(priceEl, 'color', color);
+          updateStyleIfChanged(changeEl, 'color', color);
+          updateTextIfChanged(changeEl, `${prefix}${change.toFixed(2)}\u00A0\u00A0\u00A0(${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`);
 
-          document.getElementById(`high-${item.id}`).innerText = `最高: ${high.toFixed(2)}`;
-          document.getElementById(`low-${item.id}`).innerText = `最低: ${low.toFixed(2)}`;
-          document.getElementById(`vol-${item.id}`).innerText = `成交: --`;
-          document.getElementById(`time-${item.id}`).innerText = `更新: ${updateTime}`;
+          updateTextIfChanged(document.getElementById(`high-${item.id}`), `最高: ${high.toFixed(2)}`);
+          updateTextIfChanged(document.getElementById(`low-${item.id}`), `最低: ${low.toFixed(2)}`);
+          updateTextIfChanged(document.getElementById(`vol-${item.id}`), `成交: --`);
+          updateTextIfChanged(document.getElementById(`time-${item.id}`), `更新: ${updateTime}`);
 
-          // 期貨市場隱藏第一檔買賣盤模擬
           const depthEl = document.getElementById(`depth-${item.id}`);
-          if (depthEl) depthEl.style.display = 'none';
+          if (depthEl) updateStyleIfChanged(depthEl, 'display', 'none');
 
           triggerPriceFlash(item, price);
           return;
         }
       }
 
-      /* ===== 處理港股與恆指數據 (波浪號分隔格式) ===== */
+      /* ===== 處理港股與恆指數據 ===== */
       if (dataStr && dataStr.includes('~')) {
         const parts = dataStr.split('~');
         const stockName = s2hk(parts[1]); 
@@ -1098,11 +1168,11 @@
           const changePct = parseFloat(parts[5]);
           const turnover = parseFloat(parts[6]) || 0.0;
 
-          titleEl.innerText = `${stockName} (${parts[2]})`;
+          updateTextIfChanged(titleEl, `${stockName} (${parts[2]})`);
           const priceEl = document.getElementById(`price-${item.id}`);
           const changeEl = document.getElementById(`change-${item.id}`);
           
-          priceEl.innerText = price.toFixed(2);
+          updateTextIfChanged(priceEl, price.toFixed(2));
 
           let color = 'var(--flat-color)';
           let prefix = '';
@@ -1114,19 +1184,19 @@
             prefix = '▼ ';
           }
 
-          priceEl.style.color = color;
-          changeEl.style.color = color;
-          changeEl.innerText = `${prefix}${change.toFixed(2)}\u00A0\u00A0\u00A0(${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+          updateStyleIfChanged(priceEl, 'color', color);
+          updateStyleIfChanged(changeEl, 'color', color);
+          updateTextIfChanged(changeEl, `${prefix}${change.toFixed(2)}\u00A0\u00A0\u00A0(${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`);
 
-          document.getElementById(`high-${item.id}`).innerText = `最高: --`;
-          document.getElementById(`low-${item.id}`).innerText = `最低: --`;
-          document.getElementById(`vol-${item.id}`).innerText = `大市成交: ${(turnover / 1e8).toFixed(2)} 億`;
+          updateTextIfChanged(document.getElementById(`high-${item.id}`), `最高: --`);
+          updateTextIfChanged(document.getElementById(`low-${item.id}`), `最低: --`);
+          updateTextIfChanged(document.getElementById(`vol-${item.id}`), `大市成交: ${(turnover / 1e8).toFixed(2)} 億`);
           
           const timeString = new Date().toLocaleTimeString('zh-HK', { hour12: false });
-          document.getElementById(`time-${item.id}`).innerText = `更新: ${timeString}`;
+          updateTextIfChanged(document.getElementById(`time-${item.id}`), `更新: ${timeString}`);
 
           const depthEl = document.getElementById(`depth-${item.id}`);
-          if (depthEl) depthEl.style.display = 'none';
+          if (depthEl) updateStyleIfChanged(depthEl, 'display', 'none');
 
           triggerPriceFlash(item, price);
           return;
@@ -1144,11 +1214,11 @@
               updateTime = updateTime.split(" ")[1]; 
           }
 
-          titleEl.innerText = `${stockName} (${parts[2]}.HK)`;
+          updateTextIfChanged(titleEl, `${stockName} (${parts[2]}.HK)`);
           const priceEl = document.getElementById(`price-${item.id}`);
           const changeEl = document.getElementById(`change-${item.id}`);
           
-          priceEl.innerText = price.toFixed(3);
+          updateTextIfChanged(priceEl, price.toFixed(3));
 
           let color = 'var(--flat-color)';
           let prefix = '';
@@ -1160,12 +1230,12 @@
             prefix = '▼ ';
           }
 
-          priceEl.style.color = color;
-          changeEl.style.color = color;
-          changeEl.innerText = `${prefix}${change.toFixed(3)}\u00A0\u00A0\u00A0(${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+          updateStyleIfChanged(priceEl, 'color', color);
+          updateStyleIfChanged(changeEl, 'color', color);
+          updateTextIfChanged(changeEl, `${prefix}${change.toFixed(3)}\u00A0\u00A0\u00A0(${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`);
 
-          document.getElementById(`high-${item.id}`).innerText = `最高: ${high.toFixed(3)}`;
-          document.getElementById(`low-${item.id}`).innerText = `最低: ${low.toFixed(3)}`;
+          updateTextIfChanged(document.getElementById(`high-${item.id}`), `最高: ${high.toFixed(3)}`);
+          updateTextIfChanged(document.getElementById(`low-${item.id}`), `最低: ${low.toFixed(3)}`);
 
           let volStr = '';
           if (volume >= 1e8) {
@@ -1175,8 +1245,8 @@
           } else {
             volStr = `${Math.floor(volume)}`;
           }
-          document.getElementById(`vol-${item.id}`).innerText = `成交: ${volStr}`;
-          document.getElementById(`time-${item.id}`).innerText = `更新: ${updateTime}`;
+          updateTextIfChanged(document.getElementById(`vol-${item.id}`), `成交: ${volStr}`);
+          updateTextIfChanged(document.getElementById(`time-${item.id}`), `更新: ${updateTime}`);
 
           let bidPrice = parseFloat(parts[9]) || 0;
           let askPrice = parseFloat(parts[11]) || 0;
@@ -1199,7 +1269,7 @@
           item.prevClose = prevClose;
 
           const depthEl = document.getElementById(`depth-${item.id}`);
-          if (depthEl) depthEl.style.display = '';
+          if (depthEl) updateStyleIfChanged(depthEl, 'display', '');
 
           renderDepthPanel(item);
 
@@ -1207,7 +1277,7 @@
           return;
         }
       }
-      titleEl.innerText = "查無此代號";
+      updateTextIfChanged(titleEl, "查無此代號");
     }
 
     function triggerPriceFlash(item, newPrice) {
@@ -1228,7 +1298,8 @@
       item.lastPrice = newPrice;
     }
 
-    // 初始化網頁
+    // 初始化 PWA 相關配置與網頁
+    initPWA();
     initTheme();
     initFontSize();
     renderGridUI();
