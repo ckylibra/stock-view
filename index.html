@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-title" content="港股看盤">
   <meta name="theme-color" id="themeColorMeta" content="#121212">
 
-  <!-- App 圖示 (已修改為讀取同目錄下的 icon-192.png 與 icon-512.png) -->
+  <!-- App 圖示 -->
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -74,6 +74,11 @@
       transition: background-color 0.2s ease, color 0.2s ease;
     }
 
+    /* 當開啟天氣列時，增加 Body 底部預留邊距 */
+    body.has-weather-bar {
+      padding-bottom: max(48px, calc(38px + env(safe-area-inset-bottom)));
+    }
+
     /* 頂部單一行控制列 */
     .top-add-bar {
       width: 100%;
@@ -94,7 +99,7 @@
       font-weight: bold;
       cursor: pointer;
       white-space: nowrap;
-      transition: background-color 0.2s ease;
+      transition: background-color 0.2s ease, opacity 0.2s ease;
       flex-shrink: 0;
     }
 
@@ -119,11 +124,15 @@
       border-color: var(--accent);
     }
 
-    /* 日夜切換及字體按鈕專屬樣式 */
+    /* 日夜切換及字體/天氣按鈕專屬樣式 */
     .theme-toggle-btn {
       background-color: var(--panel-bg) !important;
       color: var(--text-main) !important;
       border: 1px solid var(--border-color) !important;
+    }
+
+    .theme-toggle-btn.active {
+      border-color: var(--accent) !important;
     }
 
     /* 市場狀態標籤 */
@@ -396,22 +405,54 @@
       color: var(--text-main);
     }
 
+    /* ===== 最底部固定天氣預報列 ===== */
+    .weather-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      background-color: var(--panel-bg);
+      border-top: 1px solid var(--border-color);
+      color: var(--text-main);
+      font-size: calc(12px * var(--font-scale));
+      padding: 6px 12px;
+      padding-bottom: max(6px, env(safe-area-inset-bottom));
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      z-index: 1000;
+      box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.15);
+      white-space: nowrap;
+      overflow-x: auto;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .weather-bar::-webkit-scrollbar {
+      display: none;
+    }
+
   </style>
 </head>
 <body>
 
-  <!-- 最頂層單一行：☀️/🌙 > 新增 > 輸入欄 > 狀態 > A- > A+ -->
+  <!-- 最頂層單一行：新增 > 輸入欄 > 狀態 > A- > A+ > 🌤️ 天氣 > ☀️/🌙 (最右邊) -->
   <div class="top-add-bar">
-    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️</button>
     <button onclick="addStock()">新增</button>
     <input type="text" id="newStockInput" placeholder="代號 (如:0700, WTI, BRENT)">
     <span id="marketStatusBadge" class="status-badge">載入中...</span>
     <button class="theme-toggle-btn" onclick="changeFontSize(-1)" title="縮小字體">A-</button>
     <button class="theme-toggle-btn" onclick="changeFontSize(1)" title="放大字體">A+</button>
+    <button id="weatherToggleBtn" class="theme-toggle-btn" onclick="toggleWeather()" title="天氣預報開關">🌤️</button>
+    <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">☀️</button>
   </div>
 
   <!-- 卡片列表區域 -->
   <div class="grid-container" id="gridContainer"></div>
+
+  <!-- 底部固定天氣預報列 -->
+  <div id="weatherBar" class="weather-bar" style="display: none;">🌤️ 天氣資料載入中...</div>
 
   <script>
     let s2hk = (text) => text; 
@@ -438,7 +479,6 @@
 
     /* ================= PWA 動態 Manifest 與 Service Worker 初始化 ================= */
     function initPWA() {
-      // 1. 動態生成 Web App Manifest Blob URL
       const manifestObj = {
         name: "港股及原油即時看盤",
         short_name: "港股看盤",
@@ -471,7 +511,6 @@
       manifestLink.href = manifestURL;
       document.head.appendChild(manifestLink);
 
-      // 2. 註冊 Inline Service Worker (滿足 PWA 可安裝機制)
       if ('serviceWorker' in navigator) {
         const swCode = `
           self.addEventListener('install', (e) => self.skipWaiting());
@@ -487,6 +526,92 @@
         const swBlob = new Blob([swCode], { type: 'application/javascript' });
         const swURL = URL.createObjectURL(swBlob);
         navigator.serviceWorker.register(swURL).catch(() => {});
+      }
+    }
+
+    /* ================= 天氣預報功能 (香港天文台 API & 本地記憶) ================= */
+    const WEATHER_STORAGE_KEY = 'hk_stock_weather_preference';
+    let weatherTimer = null;
+
+    function initWeather() {
+      const savedWeather = localStorage.getItem(WEATHER_STORAGE_KEY);
+      const isEnabled = savedWeather === 'true'; // 讀取上次記憶狀態
+      applyWeatherState(isEnabled);
+    }
+
+    function toggleWeather() {
+      const weatherBar = document.getElementById('weatherBar');
+      const isCurrentlyEnabled = weatherBar && weatherBar.style.display !== 'none';
+      const newState = !isCurrentlyEnabled;
+
+      localStorage.setItem(WEATHER_STORAGE_KEY, newState.toString());
+      applyWeatherState(newState);
+    }
+
+    function applyWeatherState(isEnabled) {
+      const weatherBar = document.getElementById('weatherBar');
+      const toggleBtn = document.getElementById('weatherToggleBtn');
+
+      if (isEnabled) {
+        if (weatherBar) weatherBar.style.display = 'flex';
+        document.body.classList.add('has-weather-bar');
+        if (toggleBtn) {
+          toggleBtn.classList.add('active');
+          toggleBtn.style.opacity = '1';
+        }
+        fetchWeather();
+        if (!weatherTimer) {
+          weatherTimer = setInterval(fetchWeather, 600000); // 每 10 分鐘自動刷新
+        }
+      } else {
+        if (weatherBar) weatherBar.style.display = 'none';
+        document.body.classList.remove('has-weather-bar');
+        if (toggleBtn) {
+          toggleBtn.classList.remove('active');
+          toggleBtn.style.opacity = '0.5';
+        }
+        if (weatherTimer) {
+          clearInterval(weatherTimer);
+          weatherTimer = null;
+        }
+      }
+    }
+
+    async function fetchWeather() {
+      const weatherBar = document.getElementById('weatherBar');
+      if (!weatherBar || weatherBar.style.display === 'none') return;
+
+      try {
+        const res = await fetch('https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc');
+        if (!res.ok) throw new Error('Network error');
+        const data = await res.json();
+
+        // 氣溫 (優先取香港天文台)
+        let temp = '--';
+        if (data.temperature && data.temperature.data && data.temperature.data.length > 0) {
+          const hkoTemp = data.temperature.data.find(item => item.place === '香港天文台');
+          temp = hkoTemp ? hkoTemp.value : data.temperature.data[0].value;
+        }
+
+        // 相對濕度
+        let humidity = '--';
+        if (data.humidity && data.humidity.data && data.humidity.data.length > 0) {
+          humidity = data.humidity.data[0].value;
+        }
+
+        // 天氣警告訊息 (如有)
+        let warningText = '';
+        if (data.warningMessage && data.warningMessage.length > 0) {
+          warningText = ` ⚠️ ${data.warningMessage[0]}`;
+        }
+
+        // 更新時間
+        const updateTime = data.updateTime ? data.updateTime.substring(11, 16) : '';
+
+        const weatherText = `📍 香港即時天氣 (${updateTime}) ｜ 🌡️ ${temp}°C ｜ 💧 濕度 ${humidity}%${warningText}`;
+        updateTextIfChanged(weatherBar, weatherText);
+      } catch (e) {
+        updateTextIfChanged(weatherBar, '🌤️ 天氣資料更新失敗，稍後重新嘗試');
       }
     }
 
@@ -576,7 +701,6 @@
         updateTextIfChanged(btn, isLight ? '🌙' : '☀️');
       }
 
-      // 同步動態更新 PWA / 手機瀏覽器上方頂部狀態列顏色
       const themeColorMeta = document.getElementById('themeColorMeta');
       if (themeColorMeta) {
         themeColorMeta.setAttribute('content', isLight ? '#f0f2f5' : '#121212');
@@ -662,7 +786,6 @@
             <span class="info-item" id="time-${item.id}">更新: --</span>
           </div>
 
-          <!-- 第一檔買賣盤區塊 (期貨時會自動隱藏) -->
           <div class="depth-panel" id="depth-${item.id}">
             <div class="depth-title-row">
               <span>買盤</span>
@@ -1072,7 +1195,6 @@
         sellRatio = (askVol / totalDepthVol) * 100;
       }
 
-      // 精準比對與渲染
       updateTextIfChanged(bidPriceEl, bidPrice.toFixed(3));
       updateTextIfChanged(askPriceEl, askPrice.toFixed(3));
       updateStyleIfChanged(bidPriceEl, 'color', getPriceColor(bidPrice, prevClose));
@@ -1114,7 +1236,6 @@
       const isIndex = symbol === 'HSI' || symbol === 'HKHSI';
       const isOil = ['WTI', 'CL', 'HF_CL', 'BRENT', 'OIL', 'BZ', 'HF_OIL'].includes(symbol);
 
-      /* ===== 處理原油期貨數據 ===== */
       if (isOil && dataStr) {
         const parts = dataStr.split(',');
         if (parts.length >= 8) {
@@ -1164,7 +1285,6 @@
         }
       }
 
-      /* ===== 處理港股與恆指數據 ===== */
       if (dataStr && dataStr.includes('~')) {
         const parts = dataStr.split('~');
         const stockName = s2hk(parts[1]); 
@@ -1305,10 +1425,11 @@
       item.lastPrice = newPrice;
     }
 
-    // 初始化 PWA 相關配置與網頁
+    // 初始化 PWA、主題、字體、天氣與網頁列表
     initPWA();
     initTheme();
     initFontSize();
+    initWeather();
     renderGridUI();
     initDragAndDrop();
     updateAllStocks();
