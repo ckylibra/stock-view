@@ -74,9 +74,9 @@
       transition: background-color 0.2s ease, color 0.2s ease;
     }
 
-    /* 當開啟天氣列時，增加 Body 底部預留邊距 */
+    /* 當開啟天氣列時，增加 Body 底部預留邊距，避免阻擋最後一張股票卡片 */
     body.has-weather-bar {
-      padding-bottom: max(48px, calc(38px + env(safe-area-inset-bottom)));
+      padding-bottom: max(50px, calc(40px + env(safe-area-inset-bottom)));
     }
 
     /* 頂部單一行控制列 */
@@ -405,32 +405,40 @@
       color: var(--text-main);
     }
 
-    /* ===== 最底部固定天氣預報列 ===== */
+    /* ===== 固定於手機螢幕最底部的跑馬燈天氣預報列 ===== */
     .weather-bar {
       position: fixed;
       bottom: 0;
       left: 0;
-      right: 0;
       width: 100%;
       background-color: var(--panel-bg);
       border-top: 1px solid var(--border-color);
       color: var(--text-main);
-      font-size: calc(12px * var(--font-scale));
-      padding: 6px 12px;
-      padding-bottom: max(6px, env(safe-area-inset-bottom));
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 12px;
-      z-index: 1000;
-      box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.15);
+      font-size: calc(12.5px * var(--font-scale));
+      padding: 8px 0;
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+      z-index: 9999;
+      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
       white-space: nowrap;
-      overflow-x: auto;
-      transition: background-color 0.2s ease, border-color 0.2s ease;
     }
 
-    .weather-bar::-webkit-scrollbar {
-      display: none;
+    /* 走馬燈文字慢速滾動動畫 (80 秒平緩移動) */
+    .weather-content {
+      display: inline-block;
+      white-space: nowrap;
+      padding-left: 100vw;
+      animation: marqueeScroll 80s linear infinite;
+      will-change: transform;
+    }
+
+    @keyframes marqueeScroll {
+      0% {
+        transform: translateX(0);
+      }
+      100% {
+        transform: translateX(-100%);
+      }
     }
 
   </style>
@@ -451,8 +459,10 @@
   <!-- 卡片列表區域 -->
   <div class="grid-container" id="gridContainer"></div>
 
-  <!-- 底部固定天氣預報列 -->
-  <div id="weatherBar" class="weather-bar" style="display: none;">🌤️ 天氣資料載入中...</div>
+  <!-- 固定於手機螢幕底部的天氣跑馬燈列 -->
+  <div id="weatherBar" class="weather-bar" style="display: none;">
+    <div id="weatherContent" class="weather-content">🌤️ 天氣資料載入中...</div>
+  </div>
 
   <script>
     let s2hk = (text) => text; 
@@ -535,7 +545,7 @@
 
     function initWeather() {
       const savedWeather = localStorage.getItem(WEATHER_STORAGE_KEY);
-      const isEnabled = savedWeather === 'true'; // 讀取上次記憶狀態
+      const isEnabled = savedWeather === 'true'; 
       applyWeatherState(isEnabled);
     }
 
@@ -553,7 +563,7 @@
       const toggleBtn = document.getElementById('weatherToggleBtn');
 
       if (isEnabled) {
-        if (weatherBar) weatherBar.style.display = 'flex';
+        if (weatherBar) weatherBar.style.display = 'block';
         document.body.classList.add('has-weather-bar');
         if (toggleBtn) {
           toggleBtn.classList.add('active');
@@ -561,7 +571,7 @@
         }
         fetchWeather();
         if (!weatherTimer) {
-          weatherTimer = setInterval(fetchWeather, 600000); // 每 10 分鐘自動刷新
+          weatherTimer = setInterval(fetchWeather, 600000); 
         }
       } else {
         if (weatherBar) weatherBar.style.display = 'none';
@@ -579,6 +589,7 @@
 
     async function fetchWeather() {
       const weatherBar = document.getElementById('weatherBar');
+      const weatherContent = document.getElementById('weatherContent');
       if (!weatherBar || weatherBar.style.display === 'none') return;
 
       try {
@@ -586,32 +597,28 @@
         if (!res.ok) throw new Error('Network error');
         const data = await res.json();
 
-        // 氣溫 (優先取香港天文台)
         let temp = '--';
         if (data.temperature && data.temperature.data && data.temperature.data.length > 0) {
           const hkoTemp = data.temperature.data.find(item => item.place === '香港天文台');
           temp = hkoTemp ? hkoTemp.value : data.temperature.data[0].value;
         }
 
-        // 相對濕度
         let humidity = '--';
         if (data.humidity && data.humidity.data && data.humidity.data.length > 0) {
           humidity = data.humidity.data[0].value;
         }
 
-        // 天氣警告訊息 (如有)
         let warningText = '';
         if (data.warningMessage && data.warningMessage.length > 0) {
-          warningText = ` ⚠️ ${data.warningMessage[0]}`;
+          warningText = ` ⚠️ ${data.warningMessage.join(' ｜ ')}`;
         }
 
-        // 更新時間
         const updateTime = data.updateTime ? data.updateTime.substring(11, 16) : '';
 
-        const weatherText = `📍 香港即時天氣 (${updateTime}) ｜ 🌡️ ${temp}°C ｜ 💧 濕度 ${humidity}%${warningText}`;
-        updateTextIfChanged(weatherBar, weatherText);
+        const weatherText = `📍 香港即時天氣 (${updateTime}) ｜ 🌡️ 氣溫 ${temp}°C ｜ 💧 濕度 ${humidity}%${warningText}`;
+        if (weatherContent) updateTextIfChanged(weatherContent, weatherText);
       } catch (e) {
-        updateTextIfChanged(weatherBar, '🌤️ 天氣資料更新失敗，稍後重新嘗試');
+        if (weatherContent) updateTextIfChanged(weatherContent, '🌤️ 天氣資料更新失敗，稍後重新嘗試');
       }
     }
 
