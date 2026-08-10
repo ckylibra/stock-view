@@ -702,19 +702,17 @@
 
     /* ================= 香港即時新聞走馬燈功能 (RTHK + Google News + 明報 + 東網) ================= */
     const NEWS_STORAGE_KEY = 'hk_stock_news_preference';
-    const NEWS_ANIM_DURATION = 220; // 與 CSS newsTickerScroll 的 220s 動畫總時長保持一致
+    const NEWS_ANIM_DURATION = 220;
     const NEWS_OFFSET_KEY = 'hk_stock_news_anim_offset';
     let newsTimer = null;
-    let newsAnimStartTime = null; // 紀錄本次走馬燈動畫開始的時間戳
+    let newsAnimStartTime = null;
 
-    // 計算並保存當前新聞走馬燈滾動到的秒數位置
     function saveNewsAnimationOffset() {
       if (!newsAnimStartTime) return;
       const elapsed = ((Date.now() - newsAnimStartTime) / 1000) % NEWS_ANIM_DURATION;
       localStorage.setItem(NEWS_OFFSET_KEY, elapsed.toString());
     }
 
-    // 當頁面關閉、切換至背景或隱藏時實時保存進度
     ['visibilitychange', 'pagehide', 'beforeunload'].forEach(eventType => {
       window.addEventListener(eventType, () => {
         if (document.visibilityState === 'hidden' || eventType !== 'visibilitychange') {
@@ -745,11 +743,9 @@
 
       if (isEnabled) {
         if (newsContent) {
-          // 讀取上次觀看的秒數進度
           const savedOffset = parseFloat(localStorage.getItem(NEWS_OFFSET_KEY) || '0');
           const validOffset = (isNaN(savedOffset) ? 0 : savedOffset) % NEWS_ANIM_DURATION;
 
-          // 設定負數 animation-delay，使走馬燈直接接續上次位置
           newsContent.style.animationDelay = `-${validOffset}s`;
           newsAnimStartTime = Date.now() - (validOffset * 1000);
         }
@@ -762,10 +758,9 @@
         }
         fetchNews();
         if (!newsTimer) {
-          newsTimer = setInterval(fetchNews, 300000); // 每 5 分鐘更新一次新聞
+          newsTimer = setInterval(fetchNews, 300000); 
         }
       } else {
-        // 關閉時儲存目前觀看位置
         saveNewsAnimationOffset();
 
         if (newsBar) newsBar.style.display = 'none';
@@ -782,14 +777,13 @@
       updateTopPadding();
     }
 
-    // 標題清洗函數（移除括號、前綴詞與來源標籤，提升去重精準度）
     function cleanTitle(title) {
       if (!title) return '';
       return title
-        .replace(/\s*-\s*[^-]+$/, '')                   // 清除尾部來源名稱 (如: - 明報新聞網)
-        .replace(/[【】\[\]（）()：:丨|\-─—]/g, '')       // 清除常見括號與分割符號
-        .replace(/^(即時|最新|快訊|港股|財經|消息)/g, '')    // 清除開頭標籤詞
-        .replace(/\s+/g, '')                            // 清除所有空格
+        .replace(/\s*-\s*[^-]+$/, '')                   
+        .replace(/[【】\[\]（）()：:丨|\-─—]/g, '')       
+        .replace(/^(即時|最新|快訊|港股|財經|消息)/g, '')    
+        .replace(/\s+/g, '')                            
         .trim();
     }
 
@@ -798,7 +792,6 @@
       const newsContent = document.getElementById('newsContent');
       if (!newsBar || newsBar.style.display === 'none' || !navigator.onLine) return;
 
-      // 新聞來源設置（加入 RTHK 財經與本地即時新聞）
       const sources = [
         { name: 'RTHK財經', url: 'https://rthk.hk/rthk/news/rss/c_expressnews_cfinance.xml' },
         { name: 'RTHK本地', url: 'https://rthk.hk/rthk/news/rss/c_expressnews_clocal.xml' },
@@ -807,11 +800,10 @@
         { name: '東網', url: 'https://news.on.cc/ncnews/rss/loc_news.xml' }
       ];
 
-      const MAX_AGE_HOURS = 12; // 僅顯示最近 12 小時內發布的新聞
+      const MAX_AGE_HOURS = 12; 
       const now = new Date();
 
       try {
-        // 並行發起請求（加上 &_t=${Date.now()} 防止 rss2json 伺服器快取舊數據）
         const fetchPromises = sources.map(src => 
           fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(src.url)}&_t=${Date.now()}`)
             .then(res => res.ok ? res.json() : null)
@@ -827,7 +819,7 @@
                     let title = item.title ? item.title.trim() : '';
                     return {
                       rawTitle: title,
-                      cleanKey: cleanTitle(title).substring(0, 10), // 取清洗後的前 10 個關鍵字比對
+                      cleanKey: cleanTitle(title).substring(0, 10), 
                       source: src.name
                     };
                   });
@@ -843,7 +835,6 @@
         const results = await Promise.all(fetchPromises);
         let combinedNews = [];
 
-        // 輪流抽取各來源前 5 條新聞
         const maxItemsPerSource = 5;
         for (let i = 0; i < maxItemsPerSource; i++) {
           results.forEach(items => {
@@ -853,7 +844,6 @@
           });
         }
 
-        // 自動去重比對
         const seenKeys = new Set();
         const uniqueNews = [];
 
@@ -890,6 +880,7 @@
       if (res && res.data && res.data.diff) {
         rankData.globalIndices = res.data.diff;
         renderTickerContent();
+        renderIndexCards(res.data.diff); // 同步刷新卡片中的指數
       }
     };
 
@@ -1055,6 +1046,93 @@
         indicesEl.innerHTML = htmlIndices + htmlIndices;
       }
       updateTopPadding();
+    }
+
+    /* ================= 東方財富即時指數卡片渲染函數 ================= */
+    function fetchEastmoneyIndices() {
+      const fields = 'f2,f3,f4,f6,f12,f14';
+      const secids = '100.HSI,100.HSCEI,100.HSTECH';
+      loadJsonpScript(`https://push2.eastmoney.com/api/qt/ulist.np/get?cb=onCardIndicesData&fltt=2&invt=2&fields=${fields}&secids=${secids}`, 'script-card-indices');
+    }
+
+    window.onCardIndicesData = function(res) {
+      if (res && res.data && res.data.diff) {
+        renderIndexCards(res.data.diff);
+      }
+    };
+
+    function renderIndexCards(diffList) {
+      if (!diffList || !Array.isArray(diffList)) return;
+
+      diffList.forEach(item => {
+        if (!item || item.f2 === '-' || item.f2 === undefined) return;
+        const code = (item.f12 || '').toUpperCase();
+
+        stockList.forEach(stock => {
+          const sym = stock.symbol.trim().toUpperCase();
+          const isMatch = (code === 'HSI' && (sym === 'HSI' || sym === 'HKHSI')) ||
+                          (code === 'HSCEI' && (sym === 'HSCEI' || sym === 'HKHSCEI')) ||
+                          (code === 'HSTECH' && (sym === 'HSTECH' || sym === 'HKHSTECH')) ||
+                          (sym === code);
+
+          if (isMatch) {
+            renderIndexCardItem(stock, item);
+          }
+        });
+      });
+    }
+
+    function renderIndexCardItem(item, data) {
+      const titleEl = document.getElementById(`title-${item.id}`);
+      if (!titleEl) return;
+
+      const name = s2hk(data.f14 || '');
+      const code = data.f12 || '';
+      const priceVal = typeof data.f2 === 'number' ? data.f2 : parseFloat(data.f2);
+      const changePctVal = typeof data.f3 === 'number' ? data.f3 : parseFloat(data.f3 || 0);
+      const rawChangeAmt = typeof data.f4 === 'number' ? data.f4 : parseFloat(data.f4 || 0);
+      const turnover = typeof data.f6 === 'number' ? data.f6 : parseFloat(data.f6 || 0);
+
+      updateTextIfChanged(titleEl, `${name} (${code})`);
+
+      const priceEl = document.getElementById(`price-${item.id}`);
+      const changeEl = document.getElementById(`change-${item.id}`);
+
+      updateTextIfChanged(priceEl, priceVal.toFixed(2));
+
+      let color = 'var(--flat-color)';
+      let prefix = '';
+      if (rawChangeAmt > 0) {
+        color = 'var(--up-color)';
+        prefix = '▲ +';
+      } else if (rawChangeAmt < 0) {
+        color = 'var(--down-color)';
+        prefix = '▼ ';
+      }
+
+      updateStyleIfChanged(priceEl, 'color', color);
+      updateStyleIfChanged(changeEl, 'color', color);
+
+      const changeAmtStr = Math.abs(rawChangeAmt).toFixed(2);
+      const changePctStr = changePctVal.toFixed(2);
+      updateTextIfChanged(changeEl, `${prefix}${changeAmtStr}\u00A0\u00A0\u00A0(${changePctVal > 0 ? '+' : ''}${changePctStr}%)`);
+
+      updateTextIfChanged(document.getElementById(`high-${item.id}`), `最高: --`);
+      updateTextIfChanged(document.getElementById(`low-${item.id}`), `最低: --`);
+
+      let turnoverStr = '--';
+      if (turnover > 0) {
+        turnoverStr = `${(turnover / 1e8).toFixed(2)} 億`;
+      }
+      updateTextIfChanged(document.getElementById(`vol-${item.id}`), `大市成交: ${turnoverStr}`);
+
+      const timeString = new Date().toLocaleTimeString('zh-HK', { hour12: false });
+      updateTextIfChanged(document.getElementById(`time-${item.id}`), `更新: ${timeString}`);
+
+      const depthEl = document.getElementById(`depth-${item.id}`);
+      if (depthEl) updateStyleIfChanged(depthEl, 'display', 'none');
+
+      triggerPriceFlash(item, priceVal);
     }
 
     /* ================= 天氣預報功能 (香港天文台 API) ================= */
@@ -1631,15 +1709,19 @@
 
       const queryParts = [];
       const itemVarMap = new Map();
+      let hasIndices = false;
 
       stockList.forEach(item => {
         const symbol = item.symbol.trim().toUpperCase();
-        let param, varName;
 
-        if (symbol === 'HSI' || symbol === 'HKHSI') {
-          param = 's_hkHSI';
-          varName = 'v_s_hkHSI';
-        } else if (['WTI', 'CL', 'HF_CL'].includes(symbol)) {
+        // 指數類型改由東方財富 API 請求最新數據，跳過騰訊網絡請求
+        if (['HSI', 'HKHSI', 'HSCEI', 'HKHSCEI', 'HSTECH', 'HKHSTECH'].includes(symbol)) {
+          hasIndices = true;
+          return;
+        }
+
+        let param, varName;
+        if (['WTI', 'CL', 'HF_CL'].includes(symbol)) {
           param = 'hf_CL';
           varName = 'v_hf_CL';
         } else if (['BRENT', 'OIL', 'BZ', 'HF_OIL'].includes(symbol)) {
@@ -1655,6 +1737,16 @@
         itemVarMap.set(item.id, varName);
       });
 
+      // 列表包含指數時，獨立發起東方財富即時 API 請求
+      if (hasIndices) {
+        fetchEastmoneyIndices();
+      }
+
+      if (queryParts.length === 0) {
+        scheduleNextUpdate(true);
+        return;
+      }
+
       const uniqueParams = [...new Set(queryParts)].join(',');
       const url = `https://qt.gtimg.cn/q=${uniqueParams}`;
 
@@ -1669,8 +1761,10 @@
       script.onload = () => {
         stockList.forEach(item => {
           const varName = itemVarMap.get(item.id);
-          const dataStr = window[varName];
-          parseAndRenderStock(item, dataStr);
+          if (varName) {
+            const dataStr = window[varName];
+            parseAndRenderStock(item, dataStr);
+          }
         });
 
         script.remove();
@@ -1844,13 +1938,12 @@
       });
     }, 1000);
 
-    /* ================= 解析股票與原油期貨數據 ================= */
+    /* ================= 解析個股與原油期貨數據 ================= */
     function parseAndRenderStock(item, dataStr) {
       const titleEl = document.getElementById(`title-${item.id}`);
       if (!titleEl) return; 
 
       const symbol = item.symbol.trim().toUpperCase();
-      const isIndex = symbol === 'HSI' || symbol === 'HKHSI';
       const isOil = ['WTI', 'CL', 'HF_CL', 'BRENT', 'OIL', 'BZ', 'HF_OIL'].includes(symbol);
 
       if (isOil && dataStr) {
@@ -1906,45 +1999,7 @@
         const parts = dataStr.split('~');
         const stockName = s2hk(parts[1]); 
 
-        if (isIndex && parts.length > 5) {
-          const price = parseFloat(parts[3]);
-          const change = parseFloat(parts[4]);
-          const changePct = parseFloat(parts[5]);
-          const turnover = parseFloat(parts[6]) || 0.0;
-
-          updateTextIfChanged(titleEl, `${stockName} (${parts[2]})`);
-          const priceEl = document.getElementById(`price-${item.id}`);
-          const changeEl = document.getElementById(`change-${item.id}`);
-          
-          updateTextIfChanged(priceEl, price.toFixed(2));
-
-          let color = 'var(--flat-color)';
-          let prefix = '';
-          if (change > 0) {
-            color = 'var(--up-color)';
-            prefix = '▲ +';
-          } else if (change < 0) {
-            color = 'var(--down-color)';
-            prefix = '▼ ';
-          }
-
-          updateStyleIfChanged(priceEl, 'color', color);
-          updateStyleIfChanged(changeEl, 'color', color);
-          updateTextIfChanged(changeEl, `${prefix}${change.toFixed(2)}\u00A0\u00A0\u00A0(${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`);
-
-          updateTextIfChanged(document.getElementById(`high-${item.id}`), `最高: --`);
-          updateTextIfChanged(document.getElementById(`low-${item.id}`), `最低: --`);
-          updateTextIfChanged(document.getElementById(`vol-${item.id}`), `大市成交: ${(turnover / 1e8).toFixed(2)} 億`);
-          
-          const timeString = new Date().toLocaleTimeString('zh-HK', { hour12: false });
-          updateTextIfChanged(document.getElementById(`time-${item.id}`), `更新: ${timeString}`);
-
-          const depthEl = document.getElementById(`depth-${item.id}`);
-          if (depthEl) updateStyleIfChanged(depthEl, 'display', 'none');
-
-          triggerPriceFlash(item, price);
-          return;
-        } else if (!isIndex && parts.length > 34 && parts[1] !== '') {
+        if (parts.length > 34 && parts[1] !== '') {
           const price = parseFloat(parts[3]);
           const prevClose = parseFloat(parts[4]);
           const change = parts[31] ? parseFloat(parts[31]) : (price - prevClose);
