@@ -700,7 +700,7 @@
       }
     }
 
-    /* ================= 香港即時新聞走馬燈功能 (Google News + 明報 + 東網) ================= */
+    /* ================= 香港即時新聞走馬燈功能 (RTHK + Google News + 明報 + 東網) ================= */
     const NEWS_STORAGE_KEY = 'hk_stock_news_preference';
     const NEWS_ANIM_DURATION = 220; // 與 CSS newsTickerScroll 的 220s 動畫總時長保持一致
     const NEWS_OFFSET_KEY = 'hk_stock_news_anim_offset';
@@ -782,31 +782,55 @@
       updateTopPadding();
     }
 
+    // 標題清洗函數（移除括號、前綴詞與來源標籤，提升去重精準度）
+    function cleanTitle(title) {
+      if (!title) return '';
+      return title
+        .replace(/\s*-\s*[^-]+$/, '')                   // 清除尾部來源名稱 (如: - 明報新聞網)
+        .replace(/[【】\[\]（）()：:丨|\-─—]/g, '')       // 清除常見括號與分割符號
+        .replace(/^(即時|最新|快訊|港股|財經|消息)/g, '')    // 清除開頭標籤詞
+        .replace(/\s+/g, '')                            // 清除所有空格
+        .trim();
+    }
+
     async function fetchNews() {
       const newsBar = document.getElementById('newsBar');
       const newsContent = document.getElementById('newsContent');
       if (!newsBar || newsBar.style.display === 'none' || !navigator.onLine) return;
 
-      // 三大新聞來源設置
+      // 新聞來源設置（加入 RTHK 財經與本地即時新聞）
       const sources = [
+        { name: 'RTHK財經', url: 'https://rthk.hk/rthk/news/rss/c_expressnews_cfinance.xml' },
+        { name: 'RTHK本地', url: 'https://rthk.hk/rthk/news/rss/c_expressnews_clocal.xml' },
         { name: 'Google新聞', url: 'https://news.google.com/rss?hl=zh-HK&gl=HK&ceid=HK:zh-Hant' },
         { name: '明報', url: 'https://news.mingpao.com/rss/ins/s00001.xml' },
         { name: '東網', url: 'https://news.on.cc/ncnews/rss/loc_news.xml' }
       ];
 
+      const MAX_AGE_HOURS = 12; // 僅顯示最近 12 小時內發布的新聞
+      const now = new Date();
+
       try {
-        // 並行發起三個來源的抓取請求
+        // 並行發起請求（加上 &_t=${Date.now()} 防止 rss2json 伺服器快取舊數據）
         const fetchPromises = sources.map(src => 
-          fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(src.url)}`)
+          fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(src.url)}&_t=${Date.now()}`)
             .then(res => res.ok ? res.json() : null)
             .then(data => {
               if (data && data.items && data.items.length > 0) {
-                return data.items.map(item => {
-                  let title = item.title ? item.title.trim() : '';
-                  // 清理 Google News 標題尾部的媒體名稱 (如: "... - 明報新聞網")
-                  title = title.replace(/\s*-\s*[^-]+$/, '');
-                  return { title: s2hk(title), source: src.name };
-                });
+                return data.items
+                  .filter(item => {
+                    if (!item.pubDate) return true;
+                    const pubTime = new Date(item.pubDate);
+                    return !isNaN(pubTime.getTime()) ? ((now - pubTime) <= (MAX_AGE_HOURS * 60 * 60 * 1000)) : true;
+                  })
+                  .map(item => {
+                    let title = item.title ? item.title.trim() : '';
+                    return {
+                      rawTitle: title,
+                      cleanKey: cleanTitle(title).substring(0, 10), // 取清洗後的前 10 個關鍵字比對
+                      source: src.name
+                    };
+                  });
               }
               return [];
             })
@@ -819,8 +843,8 @@
         const results = await Promise.all(fetchPromises);
         let combinedNews = [];
 
-        // 輪流抽取各來源的前 6 條新聞，保證來源多元性
-        const maxItemsPerSource = 6;
+        // 輪流抽取各來源前 5 條新聞
+        const maxItemsPerSource = 5;
         for (let i = 0; i < maxItemsPerSource; i++) {
           results.forEach(items => {
             if (items[i]) {
@@ -829,21 +853,20 @@
           });
         }
 
-        // 新聞標題自動去重 (透過比對前 12 個字元)
-        const seenTitles = new Set();
+        // 自動去重比對
+        const seenKeys = new Set();
         const uniqueNews = [];
 
         combinedNews.forEach(item => {
-          const key = item.title.substring(0, 12);
-          if (!seenTitles.has(key) && item.title.length > 0) {
-            seenTitles.add(key);
+          if (item.cleanKey && !seenKeys.has(item.cleanKey) && item.rawTitle.length > 0) {
+            seenKeys.add(item.cleanKey);
             uniqueNews.push(item);
           }
         });
 
         if (uniqueNews.length > 0) {
           const formattedHtml = uniqueNews.map(item => 
-            `<span class="news-item">📰 [${item.source}] ${item.title}</span>`
+            `<span class="news-item">📰 [${item.source}] ${s2hk(item.rawTitle)}</span>`
           ).join('&nbsp;&nbsp;&nbsp;&nbsp;🔹&nbsp;&nbsp;&nbsp;&nbsp;');
 
           if (newsContent) {
