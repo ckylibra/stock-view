@@ -1048,62 +1048,18 @@
       updateTopPadding();
     }
 
-    /* ================= 東方財富即時指數卡片渲染函數（含超時退回） ================= */
+    /* ================= 東方財富即時指數卡片渲染函數 ================= */
     function fetchEastmoneyIndices() {
       const fields = 'f2,f3,f4,f6,f12,f14';
       const secids = '100.HSI,100.HSCEI,100.HSTECH';
-      let isResolved = false;
-
-      // 設置 2.5 秒超時退回備用機制
-      const timeoutId = setTimeout(() => {
-        if (!isResolved) {
-          console.warn('東方財富 API 請求失敗或超時，自動啟動備用 API');
-          fetchFallbackIndicesFromTencent();
-        }
-      }, 2500);
-
-      window.onCardIndicesData = function(res) {
-        isResolved = true;
-        clearTimeout(timeoutId);
-        if (res && res.data && res.data.diff) {
-          renderIndexCards(res.data.diff);
-        }
-      };
-
       loadJsonpScript(`https://push2.eastmoney.com/api/qt/ulist.np/get?cb=onCardIndicesData&fltt=2&invt=2&fields=${fields}&secids=${secids}`, 'script-card-indices');
     }
 
-    // 騰訊備用數據源請求
-    function fetchFallbackIndicesFromTencent() {
-      const scriptId = 'fallback-indices-script';
-      const oldScript = document.getElementById(scriptId);
-      if (oldScript) oldScript.remove();
-
-      const script = document.createElement('script');
-      script.id = scriptId;
-      script.src = 'https://qt.gtimg.cn/q=r_hkHSI,r_hkHSCEI,r_hkHSTECH';
-
-      script.onload = () => {
-        stockList.forEach(item => {
-          const sym = item.symbol.trim().toUpperCase();
-          let varName = '';
-          if (['HSI', 'HKHSI'].includes(sym)) varName = 'v_r_hkHSI';
-          if (['HSCEI', 'HKHSCEI'].includes(sym)) varName = 'v_r_hkHSCEI';
-          if (['HSTECH', 'HKHSTECH'].includes(sym)) varName = 'v_r_hkHSTECH';
-
-          if (varName && window[varName]) {
-            parseAndRenderStock(item, window[varName]);
-          }
-        });
-        script.remove();
-      };
-
-      script.onerror = () => {
-        script.remove();
-      };
-
-      document.body.appendChild(script);
-    }
+    window.onCardIndicesData = function(res) {
+      if (res && res.data && res.data.diff) {
+        renderIndexCards(res.data.diff);
+      }
+    };
 
     function renderIndexCards(diffList) {
       if (!diffList || !Array.isArray(diffList)) return;
@@ -1781,7 +1737,7 @@
         itemVarMap.set(item.id, varName);
       });
 
-      // 列表包含指數時，發起東方財富即時 API 請求
+      // 列表包含指數時，獨立發起東方財富即時 API 請求
       if (hasIndices) {
         fetchEastmoneyIndices();
       }
@@ -2057,15 +2013,11 @@
               updateTime = updateTime.split(" ")[1]; 
           }
 
-          // 判斷是否為指數，避免標題顯示 .HK 尾綴
-          const isIndexSymbol = ['HSI', 'HSCEI', 'HSTECH'].includes(parts[2].toUpperCase());
-          const displayCode = isIndexSymbol ? parts[2] : `${parts[2]}.HK`;
-          updateTextIfChanged(titleEl, `${stockName} (${displayCode})`);
-
+          updateTextIfChanged(titleEl, `${stockName} (${parts[2]}.HK)`);
           const priceEl = document.getElementById(`price-${item.id}`);
           const changeEl = document.getElementById(`change-${item.id}`);
           
-          updateTextIfChanged(priceEl, price.toFixed(2));
+          updateTextIfChanged(priceEl, price.toFixed(3));
 
           let color = 'var(--flat-color)';
           let prefix = '';
@@ -2079,10 +2031,10 @@
 
           updateStyleIfChanged(priceEl, 'color', color);
           updateStyleIfChanged(changeEl, 'color', color);
-          updateTextIfChanged(changeEl, `${prefix}${change.toFixed(2)}\u00A0\u00A0\u00A0(${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`);
+          updateTextIfChanged(changeEl, `${prefix}${change.toFixed(3)}\u00A0\u00A0\u00A0(${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%)`);
 
-          updateTextIfChanged(document.getElementById(`high-${item.id}`), `最高: ${high.toFixed(2)}`);
-          updateTextIfChanged(document.getElementById(`low-${item.id}`), `最低: ${low.toFixed(2)}`);
+          updateTextIfChanged(document.getElementById(`high-${item.id}`), `最高: ${high.toFixed(3)}`);
+          updateTextIfChanged(document.getElementById(`low-${item.id}`), `最低: ${low.toFixed(3)}`);
 
           let volStr = '';
           if (volume >= 1e8) {
